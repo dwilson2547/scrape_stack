@@ -1,0 +1,433 @@
+openapi: 3.1.0
+
+info:
+  title: Cache Content API
+  version: 1.0.0
+  description: |
+    API contract for content caches that accept direct uploads and serve cached
+    content via a streaming endpoint with HTTP caching headers.
+
+    Implemented by: webcache (text/HTML), imgcache (binary images).
+
+    All routes are prefixed with /cache. Service-specific optional fields
+    (e.g. image dimensions, perceptual hash) are included in the shared
+    CacheEntry schema as optional properties.
+
+servers:
+  - url: http://localhost:8000
+    description: webcache default
+  - url: http://localhost:8010
+    description: imgcache default
+
+tags:
+  - name: store
+    description: Write content into the cache
+  - name: retrieve
+    description: Read cached content
+  - name: manage
+    description: Search, delete, inspect
+
+paths:
+
+  /health:
+    get:
+      operationId: health
+      summary: Liveness probe
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /metrics:
+    get:
+      operationId: metrics
+      summary: Prometheus metrics exposition
+      responses:
+        "200":
+          description: Prometheus text format
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /cache:
+    post:
+      operationId: storeContent
+      tags: [store]
+      summary: Store content for a URL
+      description: |
+        Stores content and associates it with the given URL.
+
+        content_hash is required. The server performs a dedup check against it
+        before writing anything:
+        - Hash known, same URL: retrieved_at is bumped, status "duplicate" returned,
+          content body is ignored.
+        - Hash known, new URL: URL is associated with the existing record, status
+          "duplicate" returned, content body is ignored.
+        - Hash unknown: content is stored, status "new" returned.
+
+        Clients must compute the BLAKE3 hash of the content before calling this
+        endpoint. This avoids storing duplicate content even when the source URL
+        differs.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StoreJsonRequest"
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/StoreMultipartRequest"
+      responses:
+        "201":
+          description: New content stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StoreResponse"
+        "200":
+          description: Duplicate — content already existed, retrieved_at updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StoreResponse"
+
+  /cache/{hash}:
+    get:
+      operationId: getByHash
+      tags: [retrieve]
+      summary: Retrieve cached content by hash
+      parameters:
+        - $ref: "#/components/parameters/hash"
+      responses:
+        "200":
+          description: Content found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContentResponse"
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      operationId: deleteByHash
+      tags: [manage]
+      summary: Delete a cached entry and its stored file
+      parameters:
+        - $ref: "#/components/parameters/hash"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /cache/meta/{hash}:
+    get:
+      operationId: getMeta
+      tags: [retrieve]
+      summary: Retrieve metadata without content
+      parameters:
+        - $ref: "#/components/parameters/hash"
+      responses:
+        "200":
+          description: Metadata found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CacheEntry"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /cache/lookup:
+    get:
+      operationId: lookup
+      tags: [retrieve]
+      summary: Look up cached content by URL with optional freshness or version constraint
+      parameters:
+        - $ref: "#/components/parameters/url"
+        - $ref: "#/components/parameters/bucket"
+        - $ref: "#/components/parameters/max_age"
+        - $ref: "#/components/parameters/version"
+      responses:
+        "200":
+          description: Cache hit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContentResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/MutuallyExclusive"
+
+  /cache/search:
+    get:
+      operationId: search
+      tags: [manage]
+      summary: Search cached entries by URL substring
+      parameters:
+        - name: url_contains
+          in: query
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/bucket"
+      responses:
+        "200":
+          description: Matching entries (metadata only, no content)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CacheEntry"
+
+  /cache/serve/{hash}:
+    get:
+      operationId: serveContent
+      tags: [retrieve]
+      summary: Stream cached content with HTTP caching headers
+      description: |
+        Serves the stored file as a streaming response suitable for direct
+        browser consumption. Sets ETag (content hash) and Cache-Control: immutable
+        so browsers and dashboards can cache aggressively.
+      parameters:
+        - $ref: "#/components/parameters/hash"
+        - $ref: "#/components/parameters/bucket"
+      responses:
+        "200":
+          description: Content stream
+          headers:
+            ETag:
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                example: "public, max-age=31536000, immutable"
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "304":
+          description: Not modified (ETag matched)
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+
+  parameters:
+    hash:
+      name: hash
+      in: path
+      required: true
+      schema:
+        type: string
+        description: BLAKE3 hex digest (64 characters)
+
+    url:
+      name: url
+      in: query
+      required: true
+      schema:
+        type: string
+        format: uri
+
+    bucket:
+      name: bucket
+      in: query
+      required: false
+      description: Top-level namespace, typically the scraper name
+      schema:
+        type: string
+        default: default
+
+    max_age:
+      name: max_age
+      in: query
+      required: false
+      description: |
+        Maximum age in seconds. Returns 404 if retrieved_at is older than this.
+        Mutually exclusive with version.
+      schema:
+        type: integer
+        minimum: 0
+
+    version:
+      name: version
+      in: query
+      required: false
+      description: |
+        Return the exact version with this content hash. Mutually exclusive with max_age.
+      schema:
+        type: string
+
+  schemas:
+    StoreJsonRequest:
+      type: object
+      required: [url, content, client_name, content_hash]
+      properties:
+        url:
+          type: string
+          format: uri
+        bucket:
+          type: string
+          default: default
+          description: Top-level namespace, typically the scraper name
+        prefix:
+          type: string
+          description: |
+            Optional sub-folder path within the bucket (e.g. "run1/batch2").
+            Segments are joined as bucket/prefix/shard_a/shard_b/hash.ext.
+            Leading/trailing slashes and ".." segments are stripped.
+        client_name:
+          type: string
+        content:
+          type: string
+          description: Text content (HTML, XML, etc.)
+        content_hash:
+          type: string
+          description: |
+            BLAKE3 hex digest of the content. Required. The server deduplicates
+            against this hash before writing — if the hash is already stored the
+            content body is ignored and status "duplicate" is returned immediately.
+        meta:
+          type: object
+          additionalProperties: true
+
+    StoreMultipartRequest:
+      type: object
+      required: [url, client_name, file, content_hash]
+      properties:
+        url:
+          type: string
+          format: uri
+        bucket:
+          type: string
+          default: default
+          description: Top-level namespace, typically the scraper name
+        prefix:
+          type: string
+          description: Optional sub-folder path within the bucket (e.g. "run1/batch2")
+        client_name:
+          type: string
+        filename:
+          type: string
+        file:
+          type: string
+          format: binary
+        content_hash:
+          type: string
+          description: |
+            BLAKE3 hex digest of the file. Required. The server deduplicates
+            against this hash before writing (see StoreJsonRequest).
+        meta:
+          type: object
+          additionalProperties: true
+
+    StoreResponse:
+      type: object
+      required: [status, hash]
+      properties:
+        status:
+          type: string
+          enum: [new, duplicate]
+        hash:
+          type: string
+        file_path:
+          type: string
+        size_bytes:
+          type: integer
+
+    CacheEntry:
+      type: object
+      required: [hash, bucket, created_at, retrieved_at]
+      properties:
+        hash:
+          type: string
+        file_path:
+          type: string
+        bucket:
+          type: string
+        prefix:
+          type: string
+          nullable: true
+          description: Sub-folder path within the bucket, or null if not set
+        size_bytes:
+          type: integer
+        mime_type:
+          type: string
+        filename:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        retrieved_at:
+          type: string
+          format: date-time
+        meta:
+          type: object
+          additionalProperties: true
+        aliases:
+          type: array
+          description: All known URLs that have resolved to this content hash
+          items:
+            type: string
+            format: uri
+        # imgcache-specific optional fields
+        width:
+          type: integer
+          description: Image width in pixels (imgcache only)
+        height:
+          type: integer
+          description: Image height in pixels (imgcache only)
+        perceptual_hash:
+          type: string
+          description: Perceptual dHash hex string (imgcache only)
+
+    ContentResponse:
+      allOf:
+        - $ref: "#/components/schemas/CacheEntry"
+        - type: object
+          properties:
+            content:
+              type: string
+              description: Text content (webcache only; absent for binary services)
+
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+
+    Error:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string
+
+  responses:
+    NotFound:
+      description: Entry not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    MutuallyExclusive:
+      description: max_age and version cannot be used together
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

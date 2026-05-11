@@ -1,0 +1,551 @@
+openapi: 3.1.0
+
+info:
+  title: Cache Streaming API
+  version: 1.0.0
+  description: |
+    API contract for binary content caches that support two-phase client upload,
+    server-side download with rate-limit permit management, and streaming
+    retrieval with byte-range support.
+
+    Implemented by: vidcache (video/animation), filecache (arbitrary files).
+
+    All cache resource routes are prefixed with /cache. Upload and download
+    routes are at /upload and /download respectively.
+
+    Service-specific optional fields (e.g. phash_distance for vidcache) are
+    included in the shared schemas as optional properties.
+
+servers:
+  - url: http://localhost:8020
+    description: vidcache default
+  - url: http://localhost:8030
+    description: filecache default
+
+tags:
+  - name: ingest
+    description: Get content into the cache (client upload or server download)
+  - name: retrieve
+    description: Stream cached content or fetch metadata
+  - name: manage
+    description: Resolve, search, delete
+
+paths:
+
+  /health:
+    get:
+      operationId: health
+      summary: Liveness probe
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /metrics:
+    get:
+      operationId: metrics
+      summary: Prometheus metrics exposition
+      responses:
+        "200":
+          description: Prometheus text format
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /upload/init:
+    post:
+      operationId: uploadInit
+      tags: [ingest]
+      summary: Phase 1 — register upload metadata and check URL dedup
+      description: |
+        Checks whether the URL is already cached. If content_hash is provided
+        and matches the existing record for this URL, retrieved_at is updated
+        and status "fresh" is returned — no upload needed. If the URL is known
+        but content_hash is absent or differs, status "cached" or "pending"
+        is returned accordingly.
+
+        Status values:
+        - cached: URL already known and in cache; no upload needed.
+        - fresh: content_hash matched existing record; retrieved_at updated.
+        - pending: proceed with POST /upload/{upload_id}.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadInitRequest"
+      responses:
+        "200":
+          description: Dedup result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadInitResponse"
+
+  /upload/{upload_id}:
+    post:
+      operationId: uploadStream
+      tags: [ingest]
+      summary: Phase 2 — stream raw bytes for an active upload session
+      description: The upload_id is single-use and expires after this call.
+      parameters:
+        - name: upload_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: Ingest complete
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestResult"
+        "404":
+          description: Upload session not found or already used
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /download:
+    post:
+      operationId: serverDownload
+      tags: [ingest]
+      summary: Ask the server to download a URL on the client's behalf
+      description: |
+        The server acquires a rate-limit permit from the request_authorization
+        service for the URL's domain, downloads the file using the supplied
+        cookies and headers, stores it, and returns the full metadata record.
+
+        Requests for the same domain are queued server-side — callers block
+        until their download completes. If the URL is already cached, the
+        cached record is returned immediately without acquiring a permit.
+
+        The permit is released to request_authorization with the HTTP status
+        code of the downstream response.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DownloadRequest"
+      responses:
+        "200":
+          description: File stored or returned from cache
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CacheEntry"
+        "502":
+          description: Downstream server returned an error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Server-side download unavailable (request_auth not configured)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /cache/{hash}:
+    get:
+      operationId: streamFile
+      tags: [retrieve]
+      summary: Stream a cached file with optional byte-range support
+      parameters:
+        - $ref: "#/components/parameters/hash"
+        - name: Range
+          in: header
+          required: false
+          schema:
+            type: string
+            example: "bytes=0-1048575"
+          description: RFC 7233 byte range. Supports range (bytes=N-M) and suffix range (bytes=-N).
+      responses:
+        "200":
+          description: Full file stream
+          headers:
+            Accept-Ranges:
+              schema:
+                type: string
+                example: bytes
+            Content-Length:
+              schema:
+                type: integer
+            Content-Disposition:
+              schema:
+                type: string
+                example: 'attachment; filename="report.pdf"'
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "206":
+          description: Partial content
+          headers:
+            Content-Range:
+              schema:
+                type: string
+                example: "bytes 0-1048575/5242880"
+            Content-Length:
+              schema:
+                type: integer
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      operationId: deleteFile
+      tags: [manage]
+      summary: Delete a cached file and all its URL aliases
+      parameters:
+        - $ref: "#/components/parameters/hash"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /cache/meta/{hash}:
+    get:
+      operationId: getMeta
+      tags: [retrieve]
+      summary: Retrieve metadata for a cached file by hash
+      parameters:
+        - $ref: "#/components/parameters/hash"
+      responses:
+        "200":
+          description: Metadata found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CacheEntry"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /cache/resolve:
+    get:
+      operationId: resolve
+      tags: [manage]
+      summary: Resolve a source URL to its current content hash
+      parameters:
+        - $ref: "#/components/parameters/url"
+      responses:
+        "200":
+          description: URL resolved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResolveResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /cache/lookup:
+    get:
+      operationId: lookup
+      tags: [retrieve]
+      summary: Look up a cached file by URL with optional freshness or version constraint
+      parameters:
+        - $ref: "#/components/parameters/url"
+        - $ref: "#/components/parameters/max_age"
+        - $ref: "#/components/parameters/version"
+      responses:
+        "200":
+          description: Cache hit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CacheEntry"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/MutuallyExclusive"
+
+  /cache/search:
+    get:
+      operationId: search
+      tags: [manage]
+      summary: Search cached entries by URL substring
+      parameters:
+        - name: url_contains
+          in: query
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/bucket"
+      responses:
+        "200":
+          description: Matching entries (metadata only)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SearchResult"
+
+components:
+
+  parameters:
+    hash:
+      name: hash
+      in: path
+      required: true
+      schema:
+        type: string
+        description: BLAKE3 hex digest (64 characters)
+
+    url:
+      name: url
+      in: query
+      required: true
+      schema:
+        type: string
+        format: uri
+
+    bucket:
+      name: bucket
+      in: query
+      required: false
+      schema:
+        type: string
+        default: default
+
+    max_age:
+      name: max_age
+      in: query
+      required: false
+      description: |
+        Maximum age in seconds. Returns 404 if retrieved_at is older than this.
+        Mutually exclusive with version.
+      schema:
+        type: integer
+        minimum: 0
+
+    version:
+      name: version
+      in: query
+      required: false
+      description: |
+        Return the exact version with this content hash. Mutually exclusive with max_age.
+      schema:
+        type: string
+
+  schemas:
+    UploadInitRequest:
+      type: object
+      required: [url, bucket, filename]
+      properties:
+        url:
+          type: string
+          format: uri
+        bucket:
+          type: string
+          description: Top-level namespace, typically the scraper name
+        prefix:
+          type: string
+          description: |
+            Optional sub-folder path within the bucket (e.g. "run1/batch2").
+            Segments are joined as bucket/prefix/shard_a/shard_b/hash.ext.
+            Leading/trailing slashes and ".." segments are stripped.
+        filename:
+          type: string
+          description: Original filename, used to infer MIME type
+        content_hash:
+          type: string
+          description: |
+            BLAKE3 hex digest pre-computed by the client. Clients should always
+            provide this — it allows the server to short-circuit the upload entirely
+            if the content is already stored, avoiding unnecessary byte transfer.
+            If provided and the hash is known: retrieved_at is updated, URL is
+            associated if new, and status "fresh" is returned — no upload needed.
+            If omitted: server computes the hash after receiving the full byte
+            stream via POST /upload/{id}.
+        meta:
+          type: object
+          additionalProperties: true
+
+    UploadInitResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [cached, fresh, pending]
+        hash:
+          type: string
+          description: Present when status is cached or fresh
+        file_path:
+          type: string
+          description: Present when status is cached or fresh
+        upload_id:
+          type: string
+          description: Present when status is pending
+
+    IngestResult:
+      type: object
+      required: [status, hash, file_path, size_bytes]
+      properties:
+        status:
+          type: string
+          enum: [new, duplicate]
+        hash:
+          type: string
+        file_path:
+          type: string
+        size_bytes:
+          type: integer
+        # vidcache-specific optional field
+        phash_distance:
+          type: integer
+          description: Hamming distance to nearest perceptual hash match (vidcache only)
+
+    DownloadRequest:
+      type: object
+      required: [url, bucket, filename]
+      properties:
+        url:
+          type: string
+          format: uri
+        bucket:
+          type: string
+          description: Top-level namespace, typically the scraper name
+        prefix:
+          type: string
+          description: Optional sub-folder path within the bucket (e.g. "run1/batch2")
+        filename:
+          type: string
+        cookies:
+          type: object
+          additionalProperties:
+            type: string
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        meta:
+          type: object
+          additionalProperties: true
+
+    CacheEntry:
+      type: object
+      required: [hash, bucket, created_at, retrieved_at]
+      properties:
+        hash:
+          type: string
+        file_path:
+          type: string
+        bucket:
+          type: string
+        prefix:
+          type: string
+          nullable: true
+          description: Sub-folder path within the bucket, or null if not set
+        size_bytes:
+          type: integer
+        mime_type:
+          type: string
+        filename:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        retrieved_at:
+          type: string
+          format: date-time
+        meta:
+          type: object
+          additionalProperties: true
+        aliases:
+          type: array
+          description: All known URLs that have resolved to this content hash
+          items:
+            type: string
+            format: uri
+        # vidcache-specific optional fields
+        duration_s:
+          type: number
+          description: Video duration in seconds (vidcache only)
+        phash:
+          type: string
+          description: Perceptual hash hex string (vidcache only)
+
+    ResolveResponse:
+      type: object
+      required: [hash, url]
+      properties:
+        hash:
+          type: string
+        url:
+          type: string
+          format: uri
+
+    SearchResult:
+      type: object
+      required: [hash, url]
+      properties:
+        hash:
+          type: string
+        url:
+          type: string
+          format: uri
+        filename:
+          type: string
+        size_bytes:
+          type: integer
+        mime_type:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        retrieved_at:
+          type: string
+          format: date-time
+
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+
+    Error:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string
+
+  responses:
+    NotFound:
+      description: Entry not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    MutuallyExclusive:
+      description: max_age and version cannot be used together
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
