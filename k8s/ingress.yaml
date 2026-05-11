@@ -1,0 +1,186 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: webcache
+  namespace: scrape-stack
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: webcache.scrapestack.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: webcache
+                port:
+                  number: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: imgcache
+  namespace: scrape-stack
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: imgcache.scrapestack.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: imgcache
+                port:
+                  number: 8010
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vidcache
+  namespace: scrape-stack
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: vidcache.scrapestack.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: vidcache
+                port:
+                  number: 8020
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: filecache
+  namespace: scrape-stack
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: filecache.scrapestack.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: filecache
+                port:
+                  number: 8030
+---
+# UI handles /api/ → request-auth-api internally via its nginx config
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: request-auth-ui
+  namespace: scrape-stack
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: auth.scrapestack.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: request-auth-ui
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cache-browser-ui
+  namespace: scrape-stack
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: cache-browser.scrapestack.local
+      http:
+        paths:
+          - path: /api/
+            pathType: Prefix
+            backend:
+              service:
+                name: cache-browser-api
+                port:
+                  number: 8040
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cache-browser-ui
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cache-browser-api
+  namespace: scrape-stack
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: cache-browser-api.scrapestack.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cache-browser-api
+                port:
+                  number: 8040
+---
+# Proxy routes — strip /proxy/<type>/ prefix before forwarding to cache services.
+# Kept as a separate resource so the rewrite-target annotation doesn't affect
+# the /api/ and / routes on cache-browser-ui.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cache-browser-proxy
+  namespace: scrape-stack
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: cache-browser.scrapestack.local
+      http:
+        paths:
+          - path: /proxy/web(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: webcache
+                port:
+                  number: 8000
+          - path: /proxy/image(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: imgcache
+                port:
+                  number: 8010
+          - path: /proxy/video(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: vidcache
+                port:
+                  number: 8020
+          - path: /proxy/file(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: filecache
+                port:
+                  number: 8030

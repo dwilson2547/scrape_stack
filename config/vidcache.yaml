@@ -1,0 +1,21 @@
+video_store:
+  backend: local
+  local:
+    root: /data/vidcache
+
+dedup:
+  phash_threshold: 10
+  multipart_threshold_mb: 100
+  multipart_part_size_mb: 64
+
+ingest:
+  chunk_size_mb: 1
+  temp_dir: /tmp/vidcache
+
+request_auth:
+  enabled: true
+  address: request-auth-server:9000
+
+server:
+  host: 0.0.0.0
+  port: 8020

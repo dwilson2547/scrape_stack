@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vidcache-data
+  namespace: scrape-stack
+spec:
+  storageClassName: nfs-dataset
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1000Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vidcache
+  namespace: scrape-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vidcache
+  template:
+    metadata:
+      labels:
+        app: vidcache
+    spec:
+      containers:
+        - name: vidcache
+          image: dwilson2547/vidcache:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8020
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+            - name: DATABASE_URL
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/vidcache"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4318"
+            - name: OTEL_SERVICE_NAME
+              value: vidcache
+          volumeMounts:
+            - name: data
+              mountPath: /data/vidcache
+            - name: config
+              mountPath: /config/config.yaml
+              subPath: config.yaml
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: vidcache-data
+        - name: config
+          configMap:
+            name: vidcache-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vidcache
+  namespace: scrape-stack
+spec:
+  selector:
+    app: vidcache
+  ports:
+    - port: 8020
+      targetPort: 8020

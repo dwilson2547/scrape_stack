@@ -1,0 +1,101 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-initdb
+  namespace: scrape-stack
+data:
+  01-create-databases.sql: |
+    CREATE DATABASE webcache;
+    CREATE DATABASE imgcache;
+    CREATE DATABASE filecache;
+    CREATE DATABASE vidcache;
+    CREATE DATABASE request_auth;
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: imgcache-config
+  namespace: scrape-stack
+data:
+  config.yaml: |
+    storage:
+      backend: local
+      local:
+        root: /data/imgcache
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: filecache-config
+  namespace: scrape-stack
+data:
+  config.yaml: |
+    storage:
+      backend: local
+      local:
+        root: /data/filecache
+
+    request_auth:
+      address: request-auth-server:9000
+      enabled: true
+
+    ingest:
+      temp_dir: /tmp/filecache
+      chunk_size_mb: 1
+
+    server:
+      host: 0.0.0.0
+      port: 8030
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vidcache-config
+  namespace: scrape-stack
+data:
+  config.yaml: |
+    video_store:
+      backend: local
+      local:
+        root: /data/vidcache
+
+    dedup:
+      phash_threshold: 10
+      multipart_threshold_mb: 100
+      multipart_part_size_mb: 64
+
+    ingest:
+      chunk_size_mb: 1
+      temp_dir: /tmp/vidcache
+
+    request_auth:
+      enabled: true
+      address: request-auth-server:9000
+
+    server:
+      host: 0.0.0.0
+      port: 8020
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: request-auth-ui-nginx-conf
+  namespace: scrape-stack
+data:
+  # Dropped the Docker-specific 127.0.0.11 resolver; CoreDNS handles
+  # service discovery stably in k8s so the dynamic resolver trick isn't needed.
+  default.conf: |
+    server {
+        listen 80;
+
+        location /api/ {
+            proxy_pass http://request-auth-api:8000;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+        }
+
+        location / {
+            root /usr/share/nginx/html;
+            try_files $uri $uri/ /index.html;
+        }
+    }

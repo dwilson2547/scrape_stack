@@ -1,0 +1,186 @@
+# ── request-auth-server (gRPC + HTTP status) ─────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: request-auth-server
+  namespace: scrape-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: request-auth-server
+  template:
+    metadata:
+      labels:
+        app: request-auth-server
+    spec:
+      containers:
+        - name: request-auth-server
+          image: dwilson2547/request-auth-server:latest
+          imagePullPolicy: Always
+          ports:
+            - name: grpc
+              containerPort: 9000
+            - name: http
+              containerPort: 9003
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+            - name: DATABASE_URL
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/request_auth?sslmode=disable"
+            - name: GRPC_ADDR
+              value: ":9000"
+            - name: STATUS_ADDR
+              value: ":9003"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "otel-collector:4317"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9003
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9003
+            initialDelaySeconds: 15
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: request-auth-server
+  namespace: scrape-stack
+spec:
+  selector:
+    app: request-auth-server
+  ports:
+    - name: grpc
+      port: 9000
+      targetPort: 9000
+    - name: http
+      port: 9003
+      targetPort: 9003
+---
+# External LoadBalancer so scrapers running outside the cluster can reach gRPC.
+# Pinned to 192.168.0.62 — add this IP to the MetalLB address pool if needed,
+# and add an A record in dns.yaml pointing request-auth-server.scrapestack.local here.
+apiVersion: v1
+kind: Service
+metadata:
+  name: request-auth-grpc-external
+  namespace: scrape-stack
+  annotations:
+    metallb.universe.tf/loadBalancerIPs: 192.168.0.62
+spec:
+  type: LoadBalancer
+  selector:
+    app: request-auth-server
+  ports:
+    - name: grpc
+      port: 9000
+      targetPort: 9000
+---
+# ── request-auth-api ──────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: request-auth-api
+  namespace: scrape-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: request-auth-api
+  template:
+    metadata:
+      labels:
+        app: request-auth-api
+    spec:
+      containers:
+        - name: request-auth-api
+          image: dwilson2547/request-auth-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+            - name: DATABASE_URL
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/request_auth"
+            - name: GRPC_STATUS_URL
+              value: "http://request-auth-server:9003/status"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: request-auth-api
+  namespace: scrape-stack
+spec:
+  selector:
+    app: request-auth-api
+  ports:
+    - port: 8000
+      targetPort: 8000
+---
+# ── request-auth-ui ───────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: request-auth-ui
+  namespace: scrape-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: request-auth-ui
+  template:
+    metadata:
+      labels:
+        app: request-auth-ui
+    spec:
+      containers:
+        - name: request-auth-ui
+          image: dwilson2547/request-auth-ui:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+              readOnly: true
+      volumes:
+        - name: nginx-conf
+          configMap:
+            name: request-auth-ui-nginx-conf
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: request-auth-ui
+  namespace: scrape-stack
+spec:
+  selector:
+    app: request-auth-ui
+  ports:
+    - port: 80
+      targetPort: 80

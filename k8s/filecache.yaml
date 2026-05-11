@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: filecache-data
+  namespace: scrape-stack
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: nfs-dataset
+  resources:
+    requests:
+      storage: 1000Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: filecache
+  namespace: scrape-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: filecache
+  template:
+    metadata:
+      labels:
+        app: filecache
+    spec:
+      containers:
+        - name: filecache
+          image: dwilson2547/filecache:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8030
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+            - name: DATABASE_URL
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/filecache"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4318"
+            - name: OTEL_SERVICE_NAME
+              value: filecache
+          volumeMounts:
+            - name: data
+              mountPath: /data/filecache
+            - name: config
+              mountPath: /app/config.yaml
+              subPath: config.yaml
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: filecache-data
+        - name: config
+          configMap:
+            name: filecache-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: filecache
+  namespace: scrape-stack
+spec:
+  selector:
+    app: filecache
+  ports:
+    - port: 8030
+      targetPort: 8030

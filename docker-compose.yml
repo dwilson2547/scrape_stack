@@ -1,0 +1,231 @@
+name: scrape_stack
+
+# ─────────────────────────────────────────────
+#  Shared backing services
+# ─────────────────────────────────────────────
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-scrapestack}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    # Exposed on 5433 to avoid conflicts with any host Postgres on the default 5432
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-scrapestack}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    networks: [stack-net]
+
+  browserless:
+    image: browserless/chrome:latest
+    ports:
+      - "4000:3000"
+    environment:
+      MAX_CONCURRENT_SESSIONS: "5"
+      CONNECTION_TIMEOUT: "60000"
+    restart: unless-stopped
+    networks: [stack-net]
+
+# ─────────────────────────────────────────────
+#  Request Authorization service (gRPC + API + UI)
+# ─────────────────────────────────────────────
+  request-auth-server:
+    image: dwilson2547/request-auth-server:latest
+    build:
+      context: ../request_authorization
+      dockerfile: server/Dockerfile
+    ports:
+      - "9000:9000"   # gRPC
+      - "9003:9003"   # HTTP status/health
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-scrapestack}:${POSTGRES_PASSWORD}@postgres:5432/request_auth?sslmode=disable
+      GRPC_ADDR: :9000
+      STATUS_ADDR: :9003
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://host.docker.internal:4317
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:9003/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+    networks: [stack-net]
+
+  request-auth-api:
+    image: dwilson2547/request-auth-api:latest
+    build:
+      context: ../request_authorization/api
+    ports:
+      - "9001:8000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-scrapestack}:${POSTGRES_PASSWORD}@postgres:5432/request_auth
+      GRPC_STATUS_URL: http://request-auth-server:9003/status
+    depends_on:
+      postgres:
+        condition: service_healthy
+      request-auth-server:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [stack-net]
+
+  request-auth-ui:
+    image: dwilson2547/request-auth-ui:latest
+    build:
+      context: ../request_authorization/ui
+    ports:
+      - "9002:80"
+    volumes:
+      # Override the baked-in nginx.conf to point at this stack's API service name
+      - ./config/nginx-request-auth-ui.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - request-auth-api
+    restart: unless-stopped
+    networks: [stack-net]
+
+# ─────────────────────────────────────────────
+#  Cache services
+# ─────────────────────────────────────────────
+  webcache:
+    image: dwilson2547/webcache:latest
+    build:
+      context: ../webcache
+    ports:
+      - "8000:8000"
+    environment:
+      STORAGE_BACKEND: local
+      LOCAL_STORAGE_PATH: /data/webcache
+      DATABASE_URL: postgresql://${POSTGRES_USER:-scrapestack}:${POSTGRES_PASSWORD}@postgres:5432/webcache
+      BROWSERLESS_URL: http://browserless:3000
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://host.docker.internal:4318
+      OTEL_SERVICE_NAME: webcache
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data/webcache:/data/webcache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      request-auth-server:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [stack-net]
+
+  imgcache:
+    image: dwilson2547/imgcache:latest
+    build:
+      context: ../imgcache
+    ports:
+      - "8010:8010"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-scrapestack}:${POSTGRES_PASSWORD}@postgres:5432/imgcache
+      CONFIG_PATH: /etc/imgcache/config.yaml
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://host.docker.internal:4317
+      OTEL_SERVICE_NAME: imgcache
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data/imgcache:/data/imgcache
+      - ./config/imgcache.yaml:/etc/imgcache/config.yaml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      request-auth-server:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [stack-net]
+
+  filecache:
+    image: dwilson2547/filecache:latest
+    build:
+      context: ..
+      dockerfile: filecache/Dockerfile
+    ports:
+      - "8030:8030"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-scrapestack}:${POSTGRES_PASSWORD}@postgres:5432/filecache
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://host.docker.internal:4318
+      OTEL_SERVICE_NAME: filecache
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data/filecache:/data/filecache
+      - ./config/filecache.yaml:/app/config.yaml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      request-auth-server:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [stack-net]
+
+  vidcache:
+    image: dwilson2547/vidcache:latest
+    build:
+      context: ..
+      dockerfile: vidcache/Dockerfile
+    ports:
+      - "8020:8020"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-scrapestack}:${POSTGRES_PASSWORD}@postgres:5432/vidcache
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://host.docker.internal:4318
+      OTEL_SERVICE_NAME: vidcache
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data/vidcache:/data/vidcache
+      - ./config/vidcache.yaml:/config/config.yaml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      request-auth-server:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [stack-net]
+
+  cache-browser-api:
+    image: dwilson2547/cache-browser-api:latest
+    build:
+      context: ../cache_browser/api
+    ports:
+      - "8040:8040"
+    environment:
+      WEBCACHE_URL: http://webcache:8000
+      IMGCACHE_URL: http://imgcache:8010
+      FILECACHE_URL: http://filecache:8030
+      VIDCACHE_URL: http://vidcache:8020
+    depends_on:
+      - webcache
+      - imgcache
+      - filecache
+      - vidcache
+    restart: unless-stopped
+    networks: [stack-net]
+
+  cache-browser-ui:
+    image: dwilson2547/cache-browser-ui:latest
+    build:
+      context: ../cache_browser/ui
+    ports:
+      - "8041:80"
+    env_file:
+      - ../cache_browser/ui/.env.example
+    depends_on:
+      - cache-browser-api
+    restart: unless-stopped
+    networks: [stack-net]
+
+networks:
+  stack-net:
+    name: scrape_stack_net

@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: browserless
+  namespace: scrape-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: browserless
+  template:
+    metadata:
+      labels:
+        app: browserless
+    spec:
+      containers:
+        - name: browserless
+          image: browserless/chrome:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+          env:
+            - name: MAX_CONCURRENT_SESSIONS
+              value: "5"
+            - name: CONNECTION_TIMEOUT
+              value: "60000"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: browserless
+  namespace: scrape-stack
+spec:
+  selector:
+    app: browserless
+  ports:
+    - port: 3000
+      targetPort: 3000

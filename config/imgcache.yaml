@@ -1,0 +1,4 @@
+storage:
+  backend: local
+  local:
+    root: /data/imgcache

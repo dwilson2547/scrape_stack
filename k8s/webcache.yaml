@@ -1,0 +1,75 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: webcache-data
+  namespace: scrape-stack
+spec:
+  storageClassName: nfs-dataset
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 250Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webcache
+  namespace: scrape-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webcache
+  template:
+    metadata:
+      labels:
+        app: webcache
+    spec:
+      containers:
+        - name: webcache
+          image: dwilson2547/webcache:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+            - name: STORAGE_BACKEND
+              value: local
+            - name: LOCAL_STORAGE_PATH
+              value: /data/webcache
+            - name: DATABASE_URL
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/webcache"
+            - name: BROWSERLESS_URL
+              value: "http://browserless:3000"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4318"
+            - name: OTEL_SERVICE_NAME
+              value: webcache
+          volumeMounts:
+            - name: data
+              mountPath: /data/webcache
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: webcache-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: webcache
+  namespace: scrape-stack
+spec:
+  selector:
+    app: webcache
+  ports:
+    - port: 8000
+      targetPort: 8000
