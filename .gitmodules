@@ -22,3 +22,6 @@
 [submodule "tools/http-test-service"]
 	path = tools/http-test-service
 	url = git@github.com:dwilson2547/http-test-service.git
+[submodule "tools/nordvpn-proxy"]
+	path = tools/nordvpn-proxy
+	url = git@github.com:dwilson2547/nordvpn-proxy.git

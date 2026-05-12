@@ -1,0 +1,56 @@
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.102.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./config/monitoring/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889"
+    restart: unless-stopped
+    networks: [monitoring-net]
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    user: "0:0"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    volumes:
+      - ./config/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./data/monitoring/prometheus:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - otel-collector
+    restart: unless-stopped
+    networks: [monitoring-net]
+
+  grafana:
+    image: grafana/grafana:latest
+    user: "0:0"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_AUTH_ANONYMOUS_ENABLED: ${GRAFANA_ANONYMOUS_ENABLED:-true}
+    volumes:
+      - ./data/monitoring/grafana:/var/lib/grafana
+      - ./config/monitoring/grafana/datasources/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./config/monitoring/grafana/dashboards/providers.yml:/etc/grafana/provisioning/dashboards/providers.yml:ro
+      - ./services/webcache/grafana-dashboard.json:/var/lib/grafana/dashboards/webcache.json:ro
+      - ./services/imgcache/grafana-dashboard.json:/var/lib/grafana/dashboards/imgcache.json:ro
+      - ./services/filecache/grafana-dashboard.json:/var/lib/grafana/dashboards/filecache.json:ro
+      - ./services/vidcache/grafana-dashboard.json:/var/lib/grafana/dashboards/vidcache.json:ro
+      - ./services/request_authorization/grafana-dashboard.json:/var/lib/grafana/dashboards/request-authorization.json:ro
+      - ./tools/http-test-service/grafana-dashboard.json:/var/lib/grafana/dashboards/http-test-service.json:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks: [monitoring-net]
+
+networks:
+  monitoring-net:

@@ -39,7 +39,7 @@ services:
   request-auth-server:
     image: dwilson2547/request-auth-server:latest
     build:
-      context: ../request_authorization
+      context: ./services/request_authorization
       dockerfile: server/Dockerfile
     ports:
       - "9000:9000"   # gRPC
@@ -66,7 +66,7 @@ services:
   request-auth-api:
     image: dwilson2547/request-auth-api:latest
     build:
-      context: ../request_authorization/api
+      context: ./services/request_authorization/api
     ports:
       - "9001:8000"
     environment:
@@ -83,7 +83,7 @@ services:
   request-auth-ui:
     image: dwilson2547/request-auth-ui:latest
     build:
-      context: ../request_authorization/ui
+      context: ./services/request_authorization/ui
     ports:
       - "9002:80"
     volumes:
@@ -100,7 +100,7 @@ services:
   webcache:
     image: dwilson2547/webcache:latest
     build:
-      context: ../webcache
+      context: ./services/webcache
     ports:
       - "8000:8000"
     environment:
@@ -125,7 +125,7 @@ services:
   imgcache:
     image: dwilson2547/imgcache:latest
     build:
-      context: ../imgcache
+      context: ./services/imgcache
     ports:
       - "8010:8010"
     environment:
@@ -149,8 +149,8 @@ services:
   filecache:
     image: dwilson2547/filecache:latest
     build:
-      context: ..
-      dockerfile: filecache/Dockerfile
+      context: .
+      dockerfile: services/filecache/Dockerfile
     ports:
       - "8030:8030"
     environment:
@@ -173,8 +173,8 @@ services:
   vidcache:
     image: dwilson2547/vidcache:latest
     build:
-      context: ..
-      dockerfile: vidcache/Dockerfile
+      context: .
+      dockerfile: services/vidcache/Dockerfile
     ports:
       - "8020:8020"
     environment:
@@ -197,7 +197,7 @@ services:
   cache-browser-api:
     image: dwilson2547/cache-browser-api:latest
     build:
-      context: ../cache_browser/api
+      context: ./services/cache_browser/api
     ports:
       - "8040:8040"
     environment:
@@ -216,11 +216,11 @@ services:
   cache-browser-ui:
     image: dwilson2547/cache-browser-ui:latest
     build:
-      context: ../cache_browser/ui
+      context: ./services/cache_browser/ui
     ports:
       - "8041:80"
     env_file:
-      - ../cache_browser/ui/.env.example
+      - ./services/cache_browser/ui/.env.example
     depends_on:
       - cache-browser-api
     restart: unless-stopped

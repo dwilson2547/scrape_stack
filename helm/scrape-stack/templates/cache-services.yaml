@@ -1,0 +1,347 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: webcache-data
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: webcache
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  storageClassName: {{ .Values.persistence.webcache.storageClassName }}
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ .Values.persistence.webcache.size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webcache
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: webcache
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webcache
+  template:
+    metadata:
+      labels:
+        app: webcache
+        {{- include "scrape-stack.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: webcache
+          image: {{ .Values.images.webcache }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          ports:
+            - containerPort: 8000
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+            - name: STORAGE_BACKEND
+              value: local
+            - name: LOCAL_STORAGE_PATH
+              value: /data/webcache
+            - name: DATABASE_URL
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/webcache"
+            - name: BROWSERLESS_URL
+              value: "http://browserless:3000"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4318"
+            - name: OTEL_SERVICE_NAME
+              value: webcache
+          volumeMounts:
+            - name: data
+              mountPath: /data/webcache
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: webcache-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: webcache
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: webcache
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: webcache
+  ports:
+    - port: 8000
+      targetPort: 8000
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: imgcache-data
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: imgcache
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  storageClassName: {{ .Values.persistence.imgcache.storageClassName }}
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ .Values.persistence.imgcache.size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: imgcache
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: imgcache
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: imgcache
+  template:
+    metadata:
+      labels:
+        app: imgcache
+        {{- include "scrape-stack.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: imgcache
+          image: {{ .Values.images.imgcache }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          ports:
+            - containerPort: 8010
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+            - name: DATABASE_URL
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/imgcache"
+            - name: CONFIG_PATH
+              value: /etc/imgcache/config.yaml
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "otel-collector:4317"
+            - name: OTEL_SERVICE_NAME
+              value: imgcache
+          volumeMounts:
+            - name: data
+              mountPath: /data/imgcache
+            - name: config
+              mountPath: /etc/imgcache
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: imgcache-data
+        - name: config
+          configMap:
+            name: imgcache-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: imgcache
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: imgcache
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: imgcache
+  ports:
+    - port: 8010
+      targetPort: 8010
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: filecache-data
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: filecache
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: {{ .Values.persistence.filecache.storageClassName }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.filecache.size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: filecache
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: filecache
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: filecache
+  template:
+    metadata:
+      labels:
+        app: filecache
+        {{- include "scrape-stack.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: filecache
+          image: {{ .Values.images.filecache }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          ports:
+            - containerPort: 8030
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+            - name: DATABASE_URL
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/filecache"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4318"
+            - name: OTEL_SERVICE_NAME
+              value: filecache
+          volumeMounts:
+            - name: data
+              mountPath: /data/filecache
+            - name: config
+              mountPath: /app/config.yaml
+              subPath: config.yaml
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: filecache-data
+        - name: config
+          configMap:
+            name: filecache-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: filecache
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: filecache
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: filecache
+  ports:
+    - port: 8030
+      targetPort: 8030
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vidcache-data
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: vidcache
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  storageClassName: {{ .Values.persistence.vidcache.storageClassName }}
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ .Values.persistence.vidcache.size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vidcache
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: vidcache
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vidcache
+  template:
+    metadata:
+      labels:
+        app: vidcache
+        {{- include "scrape-stack.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: vidcache
+          image: {{ .Values.images.vidcache }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          ports:
+            - containerPort: 8020
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+            - name: DATABASE_URL
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/vidcache"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4318"
+            - name: OTEL_SERVICE_NAME
+              value: vidcache
+          volumeMounts:
+            - name: data
+              mountPath: /data/vidcache
+            - name: config
+              mountPath: /config/config.yaml
+              subPath: config.yaml
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: vidcache-data
+        - name: config
+          configMap:
+            name: vidcache-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vidcache
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: vidcache
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: vidcache
+  ports:
+    - port: 8020
+      targetPort: 8020

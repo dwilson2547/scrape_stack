@@ -1,0 +1,90 @@
+namespace:
+  create: true
+  name: scrape-stack
+
+domains:
+  stack: scrapestack.local
+  monitoring: monitoring.local
+
+postgres:
+  image: postgres:16
+  credentials:
+    user: scrapestack
+    password: change_me_to_a_secure_password
+  storageClassName: nfs-dataset
+  storageSize: 100Gi
+
+images:
+  browserless: browserless/chrome:latest
+  requestAuthServer: dwilson2547/request-auth-server:latest
+  requestAuthApi: dwilson2547/request-auth-api:latest
+  requestAuthUi: dwilson2547/request-auth-ui:latest
+  webcache: dwilson2547/webcache:latest
+  imgcache: dwilson2547/imgcache:latest
+  filecache: dwilson2547/filecache:latest
+  vidcache: dwilson2547/vidcache:latest
+  cacheBrowserApi: dwilson2547/cache-browser-api:latest
+  cacheBrowserUi: dwilson2547/cache-browser-ui:latest
+
+imagePullPolicy: Always
+
+persistence:
+  webcache:
+    storageClassName: nfs-dataset
+    size: 250Gi
+  imgcache:
+    storageClassName: nfs-dataset
+    size: 500Gi
+  filecache:
+    storageClassName: nfs-dataset
+    size: 1000Gi
+  vidcache:
+    storageClassName: nfs-dataset
+    size: 1000Gi
+
+requestAuth:
+  externalGrpc:
+    enabled: true
+    dnsPrefix: request-auth-server
+    loadBalancerIP: 192.168.0.62
+
+cacheBrowser:
+  ui:
+    nginxResolver: 10.152.183.10  # Default microk8s DNS resolver IP, adjust if using a different Kubernetes setup
+
+ingress:
+  enabled: true
+  className: nginx
+  prefixes:
+    webcache: webcache
+    imgcache: imgcache
+    vidcache: vidcache
+    filecache: filecache
+    authUi: auth
+    cacheBrowserUi: cache-browser
+    cacheBrowserApi: cache-browser-api
+
+monitoring:
+  otelCollector:
+    enabled: true
+    image: otel/opentelemetry-collector-contrib:latest
+  serviceMonitor:
+    enabled: false
+    releaseLabel: prometheus
+  grafanaIngress:
+    enabled: false
+    namespace: monitoring
+    className: nginx
+    includeMonitoringDomainRoot: true
+    stackDomainPrefixes:
+      - grafana
+    additionalHosts: []
+    serviceName: prometheus-grafana
+    servicePort: 80
+
+dnsLocal:
+  enabled: false
+  image: coredns/coredns:latest
+  imagePullPolicy: Always
+  loadBalancerIP: 192.168.0.61
+  ingressIP: 192.168.0.60

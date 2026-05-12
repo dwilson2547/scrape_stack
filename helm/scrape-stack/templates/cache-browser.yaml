@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cache-browser-api
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: cache-browser-api
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cache-browser-api
+  template:
+    metadata:
+      labels:
+        app: cache-browser-api
+        {{- include "scrape-stack.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: cache-browser-api
+          image: {{ .Values.images.cacheBrowserApi }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          ports:
+            - containerPort: 8040
+          env:
+            - name: WEBCACHE_URL
+              value: "http://webcache:8000"
+            - name: IMGCACHE_URL
+              value: "http://imgcache:8010"
+            - name: FILECACHE_URL
+              value: "http://filecache:8030"
+            - name: VIDCACHE_URL
+              value: "http://vidcache:8020"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cache-browser-api
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: cache-browser-api
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: cache-browser-api
+  ports:
+    - port: 8040
+      targetPort: 8040
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cache-browser-ui
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: cache-browser-ui
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cache-browser-ui
+  template:
+    metadata:
+      labels:
+        app: cache-browser-ui
+        {{- include "scrape-stack.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: cache-browser-ui
+          image: {{ .Values.images.cacheBrowserUi }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          ports:
+            - containerPort: 80
+          envFrom:
+            - configMapRef:
+                name: cache-browser-ui-env
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cache-browser-ui
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: cache-browser-ui
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: cache-browser-ui
+  ports:
+    - port: 80
+      targetPort: 80

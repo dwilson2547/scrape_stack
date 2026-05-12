@@ -1,0 +1,10 @@
+apiVersion: 1
+providers:
+  - name: scrape-stack
+    orgId: 1
+    folder: Scrape Stack
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

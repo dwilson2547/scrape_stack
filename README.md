@@ -54,6 +54,61 @@ docker compose up -d --build
 docker compose logs -f <service>
 ```
 
+## Optional Monitoring Stack (OTEL + Prometheus + Grafana)
+
+You can keep monitoring optional by using the side compose file at the repo root:
+
+**Start app + monitoring**
+```bash
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+```
+
+**Start monitoring only**
+```bash
+docker compose -f docker-compose.monitoring.yml up -d
+```
+
+**Stop monitoring**
+```bash
+docker compose -f docker-compose.monitoring.yml down
+```
+
+| Service | Host Port |
+|---|---|
+| OTEL Collector (gRPC) | 4317 |
+| OTEL Collector (HTTP) | 4318 |
+| Collector Prometheus endpoint | 8889 |
+| Prometheus UI | 9090 |
+| Grafana UI | 3000 |
+
+Grafana is auto-provisioned with Prometheus and auto-loads dashboards from:
+- `services/webcache/grafana-dashboard.json`
+- `services/imgcache/grafana-dashboard.json`
+- `services/filecache/grafana-dashboard.json`
+- `services/vidcache/grafana-dashboard.json`
+- `services/request_authorization/grafana-dashboard.json`
+- `tools/http-test-service/grafana-dashboard.json`
+
+## Helm Chart (separate from `k8s/`)
+
+A standalone Helm chart is available under `helm/scrape-stack/`.  
+The existing `k8s/` manifests are left as-is.
+
+**Render templates**
+```bash
+helm template scrape-stack ./helm/scrape-stack -n scrape-stack
+```
+
+**Install**
+```bash
+helm upgrade --install scrape-stack ./helm/scrape-stack -n scrape-stack --create-namespace
+```
+
+**Customize**
+```bash
+helm upgrade --install scrape-stack ./helm/scrape-stack -n scrape-stack --create-namespace -f my-values.yaml
+```
+
 ## Data
 
 All persistent data is stored under `./data/` (created automatically on first start):
@@ -69,4 +124,4 @@ All persistent data is stored under `./data/` (created automatically on first st
 
 ## OTEL
 
-This stack does not include an OTEL collector — deploy the otel stack separately and point services at it via `OTEL_EXPORTER_OTLP_ENDPOINT` in `.env` if needed.
+Use `docker-compose.monitoring.yml` to run the bundled local OTEL monitoring stack when needed.

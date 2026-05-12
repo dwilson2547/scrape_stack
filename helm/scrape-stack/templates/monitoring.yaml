@@ -1,0 +1,164 @@
+{{- if .Values.monitoring.otelCollector.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: otel-collector
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      batch:
+        timeout: 5s
+
+    exporters:
+      prometheus:
+        endpoint: 0.0.0.0:8889
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [prometheus]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: otel-collector
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+        {{- include "scrape-stack.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: otel-collector
+          image: {{ .Values.monitoring.otelCollector.image }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          ports:
+            - name: grpc
+              containerPort: 4317
+            - name: http
+              containerPort: 4318
+            - name: prometheus
+              containerPort: 8889
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otelcol-contrib/config.yaml
+              subPath: config.yaml
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: otel-collector
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: otel-collector
+  ports:
+    - name: grpc
+      port: 4317
+      targetPort: 4317
+    - name: http
+      port: 4318
+      targetPort: 4318
+    - name: prometheus
+      port: 8889
+      targetPort: 8889
+{{- end }}
+{{- if .Values.monitoring.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: otel-collector
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    release: {{ .Values.monitoring.serviceMonitor.releaseLabel }}
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: otel-collector
+  endpoints:
+    - port: prometheus
+      path: /metrics
+      interval: 15s
+{{- end }}
+{{- if .Values.monitoring.grafanaIngress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  namespace: {{ .Values.monitoring.grafanaIngress.namespace }}
+  labels:
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.monitoring.grafanaIngress.className }}
+  rules:
+{{- if .Values.monitoring.grafanaIngress.includeMonitoringDomainRoot }}
+    - host: {{ .Values.domains.monitoring }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.monitoring.grafanaIngress.serviceName }}
+                port:
+                  number: {{ .Values.monitoring.grafanaIngress.servicePort }}
+{{- end }}
+{{- range .Values.monitoring.grafanaIngress.stackDomainPrefixes }}
+    - host: {{ include "scrape-stack.fqdn" (dict "prefix" . "domain" $.Values.domains.stack) }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $.Values.monitoring.grafanaIngress.serviceName }}
+                port:
+                  number: {{ $.Values.monitoring.grafanaIngress.servicePort }}
+{{- end }}
+{{- range .Values.monitoring.grafanaIngress.additionalHosts }}
+    - host: {{ . }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $.Values.monitoring.grafanaIngress.serviceName }}
+                port:
+                  number: {{ $.Values.monitoring.grafanaIngress.servicePort }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,206 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: request-auth-server
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: request-auth-server
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: request-auth-server
+  template:
+    metadata:
+      labels:
+        app: request-auth-server
+        {{- include "scrape-stack.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: request-auth-server
+          image: {{ .Values.images.requestAuthServer }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          ports:
+            - name: grpc
+              containerPort: 9000
+            - name: http
+              containerPort: 9003
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+            - name: DATABASE_URL
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/request_auth?sslmode=disable"
+            - name: GRPC_ADDR
+              value: ":9000"
+            - name: STATUS_ADDR
+              value: ":9003"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "otel-collector:4317"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9003
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9003
+            initialDelaySeconds: 15
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: request-auth-server
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: request-auth-server
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: request-auth-server
+  ports:
+    - name: grpc
+      port: 9000
+      targetPort: 9000
+    - name: http
+      port: 9003
+      targetPort: 9003
+{{- if .Values.requestAuth.externalGrpc.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: request-auth-grpc-external
+  namespace: {{ include "scrape-stack.namespace" . }}
+  annotations:
+    metallb.universe.tf/loadBalancerIPs: {{ .Values.requestAuth.externalGrpc.loadBalancerIP | quote }}
+  labels:
+    app: request-auth-server
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  type: LoadBalancer
+  selector:
+    app: request-auth-server
+  ports:
+    - name: grpc
+      port: 9000
+      targetPort: 9000
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: request-auth-api
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: request-auth-api
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: request-auth-api
+  template:
+    metadata:
+      labels:
+        app: request-auth-api
+        {{- include "scrape-stack.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: request-auth-api
+          image: {{ .Values.images.requestAuthApi }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          ports:
+            - containerPort: 8000
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+            - name: DATABASE_URL
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/request_auth"
+            - name: GRPC_STATUS_URL
+              value: "http://request-auth-server:9003/status"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: request-auth-api
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: request-auth-api
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: request-auth-api
+  ports:
+    - port: 8000
+      targetPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: request-auth-ui
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: request-auth-ui
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: request-auth-ui
+  template:
+    metadata:
+      labels:
+        app: request-auth-ui
+        {{- include "scrape-stack.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: request-auth-ui
+          image: {{ .Values.images.requestAuthUi }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+              readOnly: true
+      volumes:
+        - name: nginx-conf
+          configMap:
+            name: request-auth-ui-nginx-conf
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: request-auth-ui
+  namespace: {{ include "scrape-stack.namespace" . }}
+  labels:
+    app: request-auth-ui
+    {{- include "scrape-stack.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: request-auth-ui
+  ports:
+    - port: 80
+      targetPort: 80
