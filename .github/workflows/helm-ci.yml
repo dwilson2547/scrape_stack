@@ -1,0 +1,65 @@
+name: helm-ci
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'helm/scrape-stack/**'
+      - '.github/workflows/helm-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'helm/scrape-stack/**'
+      - '.github/workflows/helm-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.15.2
+      - name: Helm lint
+        run: helm lint helm/scrape-stack
+      - name: Helm package
+        run: helm package helm/scrape-stack --destination /tmp/helm-dist
+
+  publish-oci:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: lint-and-package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.15.2
+      - name: Extract chart version
+        id: chart
+        run: |
+          echo "version=$(awk '/^version:/{print $2}' helm/scrape-stack/Chart.yaml)" >> "$GITHUB_OUTPUT"
+      - name: Login to Docker Hub registry
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          echo "$DOCKERHUB_TOKEN" | helm registry login -u "$DOCKERHUB_USERNAME" --password-stdin docker.io
+      - name: Fail if chart version already exists
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          if helm show chart "oci://docker.io/${DOCKERHUB_USERNAME}/scrape-stack" --version "${{ steps.chart.outputs.version }}" >/dev/null 2>&1; then
+            echo "Chart version ${{ steps.chart.outputs.version }} already exists in Docker Hub OCI."
+            exit 1
+          fi
+      - name: Package chart
+        run: helm package helm/scrape-stack --destination /tmp/helm-dist
+      - name: Push chart to Docker Hub OCI
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          helm push "/tmp/helm-dist/scrape-stack-${{ steps.chart.outputs.version }}.tgz" "oci://docker.io/${DOCKERHUB_USERNAME}"
+

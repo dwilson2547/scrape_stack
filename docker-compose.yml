@@ -149,8 +149,8 @@ services:
   filecache:
     image: dwilson2547/filecache:latest
     build:
-      context: .
-      dockerfile: services/filecache/Dockerfile
+      context: ./services/filecache
+      dockerfile: Dockerfile
     ports:
       - "8030:8030"
     environment:
@@ -173,8 +173,8 @@ services:
   vidcache:
     image: dwilson2547/vidcache:latest
     build:
-      context: .
-      dockerfile: services/vidcache/Dockerfile
+      context: ./services/vidcache
+      dockerfile: Dockerfile
     ports:
       - "8020:8020"
     environment:
