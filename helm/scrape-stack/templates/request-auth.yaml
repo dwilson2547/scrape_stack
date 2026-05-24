@@ -30,21 +30,21 @@ spec:
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: postgres-credentials
+                  name: {{ .Values.postgres.existingSecret }}
                   key: POSTGRES_USER
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: postgres-credentials
+                  name: {{ .Values.postgres.existingSecret }}
                   key: POSTGRES_PASSWORD
             - name: DATABASE_URL
-              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/request_auth?sslmode=disable"
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@{{ .Values.postgres.host }}:5432/request_auth?sslmode=disable"
             - name: GRPC_ADDR
               value: ":9000"
             - name: STATUS_ADDR
               value: ":9003"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "otel-collector:4317"
+              value: {{ .Values.monitoring.otelCollector.grpcEndpoint | quote }}
           readinessProbe:
             httpGet:
               path: /health
@@ -128,15 +128,15 @@ spec:
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: postgres-credentials
+                  name: {{ .Values.postgres.existingSecret }}
                   key: POSTGRES_USER
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: postgres-credentials
+                  name: {{ .Values.postgres.existingSecret }}
                   key: POSTGRES_PASSWORD
             - name: DATABASE_URL
-              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/request_auth"
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@{{ .Values.postgres.host }}:5432/request_auth"
             - name: GRPC_STATUS_URL
               value: "http://request-auth-server:9003/status"
 ---

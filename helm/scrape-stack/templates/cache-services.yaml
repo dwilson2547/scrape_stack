@@ -42,23 +42,23 @@ spec:
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: postgres-credentials
+                  name: {{ .Values.postgres.existingSecret }}
                   key: POSTGRES_USER
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: postgres-credentials
+                  name: {{ .Values.postgres.existingSecret }}
                   key: POSTGRES_PASSWORD
             - name: STORAGE_BACKEND
               value: local
             - name: LOCAL_STORAGE_PATH
               value: /data/webcache
             - name: DATABASE_URL
-              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/webcache"
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@{{ .Values.postgres.host }}:5432/webcache"
             - name: BROWSERLESS_URL
               value: "http://browserless:3000"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://otel-collector:4318"
+              value: {{ .Values.monitoring.otelCollector.httpEndpoint | quote }}
             - name: OTEL_SERVICE_NAME
               value: webcache
           volumeMounts:
@@ -128,19 +128,19 @@ spec:
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: postgres-credentials
+                  name: {{ .Values.postgres.existingSecret }}
                   key: POSTGRES_USER
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: postgres-credentials
+                  name: {{ .Values.postgres.existingSecret }}
                   key: POSTGRES_PASSWORD
             - name: DATABASE_URL
-              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/imgcache"
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@{{ .Values.postgres.host }}:5432/imgcache"
             - name: CONFIG_PATH
               value: /etc/imgcache/config.yaml
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "otel-collector:4317"
+              value: {{ .Values.monitoring.otelCollector.httpEndpoint | quote }}
             - name: OTEL_SERVICE_NAME
               value: imgcache
           volumeMounts:
@@ -216,17 +216,17 @@ spec:
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: postgres-credentials
+                  name: {{ .Values.postgres.existingSecret }}
                   key: POSTGRES_USER
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: postgres-credentials
+                  name: {{ .Values.postgres.existingSecret }}
                   key: POSTGRES_PASSWORD
             - name: DATABASE_URL
-              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/filecache"
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@{{ .Values.postgres.host }}:5432/filecache"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://otel-collector:4318"
+              value: {{ .Values.monitoring.otelCollector.httpEndpoint | quote }}
             - name: OTEL_SERVICE_NAME
               value: filecache
           volumeMounts:
@@ -303,17 +303,17 @@ spec:
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: postgres-credentials
+                  name: {{ .Values.postgres.existingSecret }}
                   key: POSTGRES_USER
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: postgres-credentials
+                  name: {{ .Values.postgres.existingSecret }}
                   key: POSTGRES_PASSWORD
             - name: DATABASE_URL
-              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/vidcache"
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@{{ .Values.postgres.host }}:5432/vidcache"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://otel-collector:4318"
+              value: {{ .Values.monitoring.otelCollector.httpEndpoint | quote }}
             - name: OTEL_SERVICE_NAME
               value: vidcache
           volumeMounts:

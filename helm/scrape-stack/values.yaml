@@ -7,12 +7,8 @@ domains:
   monitoring: monitoring.local
 
 postgres:
-  image: postgres:16
-  credentials:
-    user: scrapestack
-    password: change_me_to_a_secure_password
-  storageClassName: nfs-dataset
-  storageSize: 100Gi
+  host: postgres.postgres.svc.cluster.local
+  existingSecret: postgres-credentials
 
 images:
   browserless: browserless/chrome:latest
@@ -66,25 +62,5 @@ ingress:
 
 monitoring:
   otelCollector:
-    enabled: true
-    image: otel/opentelemetry-collector-contrib:latest
-  serviceMonitor:
-    enabled: false
-    releaseLabel: prometheus
-  grafanaIngress:
-    enabled: false
-    namespace: monitoring
-    className: nginx
-    includeMonitoringDomainRoot: true
-    stackDomainPrefixes:
-      - grafana
-    additionalHosts: []
-    serviceName: prometheus-grafana
-    servicePort: 80
-
-dnsLocal:
-  enabled: false
-  image: coredns/coredns:latest
-  imagePullPolicy: Always
-  loadBalancerIP: 192.168.0.61
-  ingressIP: 192.168.0.60
+    httpEndpoint: "http://otel-collector.monitoring.svc.cluster.local:4318"
+    grpcEndpoint: "otel-collector.monitoring.svc.cluster.local:4317"

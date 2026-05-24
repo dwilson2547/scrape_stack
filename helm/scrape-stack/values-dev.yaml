@@ -1,0 +1,38 @@
+namespace:
+  create: true
+  name: scrapestack-dev
+
+domains:
+  stack: scrapestack-dev.local
+  monitoring: monitoring.local
+
+postgres:
+  host: postgres-dev.postgres.svc.cluster.local
+  existingSecret: postgres-credentials
+
+imagePullPolicy: IfNotPresent
+
+persistence:
+  webcache:
+    storageClassName: nfs-dataset
+    size: 50Gi
+  imgcache:
+    storageClassName: nfs-dataset
+    size: 100Gi
+  filecache:
+    storageClassName: nfs-dataset
+    size: 200Gi
+  vidcache:
+    storageClassName: nfs-dataset
+    size: 200Gi
+
+requestAuth:
+  externalGrpc:
+    enabled: true
+    dnsPrefix: request-auth-server
+    loadBalancerIP: 192.168.0.63
+
+cacheBrowser:
+  ui:
+    nginxResolver: 10.152.183.10
+

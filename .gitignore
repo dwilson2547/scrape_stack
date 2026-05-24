@@ -3,6 +3,10 @@ data/
 db_dumps/
 initdb/
 
+# Real secrets - use example-secrets/ directories as templates instead
+**/*secret*.yaml
+!**/example-secrets/
+
 .pytest_cache/
 */.claude/
 
