@@ -1,0 +1,245 @@
+{
+  "nodes": [
+    {
+      "id": "title",
+      "type": "text",
+      "text": "# filecache / vidcache — Two-Phase Client Upload\n`client.upload_init()` + `client.upload_stream()` (manual) **or** `client.ingest_from_url()` (combined)\nBytes stream from client → service. URL dedup check skips upload if already cached.",
+      "x": 0,
+      "y": -240,
+      "width": 640,
+      "height": 110
+    },
+    {
+      "id": "start",
+      "type": "text",
+      "text": "**START**\nScraper wants to upload a file/video to the cache",
+      "x": 0,
+      "y": -70,
+      "width": 640,
+      "height": 70,
+      "color": "4"
+    },
+    {
+      "id": "s1",
+      "type": "text",
+      "text": "**[Scraper]** — choose one of two entry points:\n• `client.upload_init(url, bucket, filename=…)` then `client.upload_stream(upload_id, stream)`\n• `client.ingest_from_url(url, bucket, filename=…)` — combines both phases automatically",
+      "x": 0,
+      "y": 60,
+      "width": 640,
+      "height": 100
+    },
+    {
+      "id": "phase1-group",
+      "type": "group",
+      "label": "Phase 1 — Init & Dedup Check",
+      "x": -20,
+      "y": 200,
+      "width": 680,
+      "height": 290
+    },
+    {
+      "id": "s2",
+      "type": "text",
+      "text": "**[StreamingCacheClient]**\n`POST /upload/init` with JSON:\n`{ url, bucket, filename, [prefix, meta, content_hash] }`",
+      "x": 0,
+      "y": 240,
+      "width": 640,
+      "height": 90
+    },
+    {
+      "id": "s3",
+      "type": "text",
+      "text": "**[service → PostgreSQL]**\nChecks if URL (and optional content_hash) is already stored in this bucket",
+      "x": 0,
+      "y": 370,
+      "width": 640,
+      "height": 80
+    },
+    {
+      "id": "decision",
+      "type": "text",
+      "text": "URL already cached?",
+      "x": 170,
+      "y": 530,
+      "width": 300,
+      "height": 60,
+      "color": "3"
+    },
+    {
+      "id": "dedup-hit",
+      "type": "text",
+      "text": "**YES — dedup hit**\nReturns `{ status: \"cached\" | \"fresh\", hash, file_path }`\nUpload skipped entirely",
+      "x": -260,
+      "y": 650,
+      "width": 340,
+      "height": 90,
+      "color": "4"
+    },
+    {
+      "id": "dedup-miss",
+      "type": "text",
+      "text": "**NO — not cached**\nReturns `{ status: \"pending\", upload_id }`",
+      "x": 240,
+      "y": 650,
+      "width": 340,
+      "height": 70,
+      "color": "2"
+    },
+    {
+      "id": "phase2-group",
+      "type": "group",
+      "label": "Phase 2 — Stream Upload",
+      "x": -20,
+      "y": 770,
+      "width": 680,
+      "height": 320
+    },
+    {
+      "id": "s4",
+      "type": "text",
+      "text": "**[Scraper / ingest_from_url]** — choose one:\n• Manual: Scraper reads local bytes and calls `client.upload_stream(upload_id, file_object)`\n• ingest_from_url: Client downloads source URL on-the-fly and pipes chunks directly — nothing written to disk locally",
+      "x": 0,
+      "y": 810,
+      "width": 640,
+      "height": 100
+    },
+    {
+      "id": "s5",
+      "type": "text",
+      "text": "**[StreamingCacheClient]**\n`POST /upload/{upload_id}` with chunked binary body\n`Content-Type: application/octet-stream`",
+      "x": 0,
+      "y": 950,
+      "width": 640,
+      "height": 90
+    },
+    {
+      "id": "s6",
+      "type": "text",
+      "text": "**[service]**\nReceives chunks, writes to local file storage\nComputes blake3 content hash of received bytes",
+      "x": 0,
+      "y": 1090,
+      "width": 640,
+      "height": 80
+    },
+    {
+      "id": "s7",
+      "type": "text",
+      "text": "**[service → PostgreSQL]**\nInserts cache entry: `url, hash, bucket, file_path, size_bytes, stored_at, [filename, prefix, meta]`",
+      "x": 0,
+      "y": 1220,
+      "width": 640,
+      "height": 80
+    },
+    {
+      "id": "s8",
+      "type": "text",
+      "text": "**[service]**\nReturns `{ status: \"stored\", hash, file_path, size_bytes }`",
+      "x": 0,
+      "y": 1350,
+      "width": 640,
+      "height": 70
+    },
+    {
+      "id": "merge",
+      "type": "text",
+      "text": "**[StreamingCacheClient]**\nReturns result dict to caller",
+      "x": 0,
+      "y": 1470,
+      "width": 640,
+      "height": 70
+    },
+    {
+      "id": "end",
+      "type": "text",
+      "text": "**END**\nCaller receives `{ status, hash, file_path, [size_bytes] }`",
+      "x": 0,
+      "y": 1590,
+      "width": 640,
+      "height": 70,
+      "color": "4"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-title-start",
+      "fromNode": "title",
+      "toNode": "start"
+    },
+    {
+      "id": "e-start-s1",
+      "fromNode": "start",
+      "toNode": "s1"
+    },
+    {
+      "id": "e-s1-s2",
+      "fromNode": "s1",
+      "toNode": "s2",
+      "label": "REST/HTTP"
+    },
+    {
+      "id": "e-s2-s3",
+      "fromNode": "s2",
+      "toNode": "s3",
+      "label": "SQL"
+    },
+    {
+      "id": "e-s3-dec",
+      "fromNode": "s3",
+      "toNode": "decision"
+    },
+    {
+      "id": "e-dec-hit",
+      "fromNode": "decision",
+      "toNode": "dedup-hit",
+      "label": "already cached"
+    },
+    {
+      "id": "e-dec-miss",
+      "fromNode": "decision",
+      "toNode": "dedup-miss",
+      "label": "not cached"
+    },
+    {
+      "id": "e-hit-merge",
+      "fromNode": "dedup-hit",
+      "toNode": "merge"
+    },
+    {
+      "id": "e-miss-s4",
+      "fromNode": "dedup-miss",
+      "toNode": "s4"
+    },
+    {
+      "id": "e-s4-s5",
+      "fromNode": "s4",
+      "toNode": "s5",
+      "label": "REST/HTTP chunked stream"
+    },
+    {
+      "id": "e-s5-s6",
+      "fromNode": "s5",
+      "toNode": "s6"
+    },
+    {
+      "id": "e-s6-s7",
+      "fromNode": "s6",
+      "toNode": "s7",
+      "label": "SQL"
+    },
+    {
+      "id": "e-s7-s8",
+      "fromNode": "s7",
+      "toNode": "s8"
+    },
+    {
+      "id": "e-s8-merge",
+      "fromNode": "s8",
+      "toNode": "merge"
+    },
+    {
+      "id": "e-merge-end",
+      "fromNode": "merge",
+      "toNode": "end"
+    }
+  ]
+}

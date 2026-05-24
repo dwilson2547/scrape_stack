@@ -1,0 +1,145 @@
+{
+  "nodes": [
+    {
+      "id": "title",
+      "type": "text",
+      "text": "# webcache — Store HTML Content\nDirect JSON upload: `client.store(url, content, client_name, …)` → `POST /cache`",
+      "x": 0,
+      "y": -200,
+      "width": 580,
+      "height": 90
+    },
+    {
+      "id": "start",
+      "type": "text",
+      "text": "**START**\nScraper has fetched HTML and wants to cache it",
+      "x": 0,
+      "y": -60,
+      "width": 580,
+      "height": 70,
+      "color": "4"
+    },
+    {
+      "id": "s1",
+      "type": "text",
+      "text": "**[Scraper]**\nCalls `client.store(url, content, client_name, bucket=\"default\", prefix=…, cookies=…, response_metadata=…)`",
+      "x": 0,
+      "y": 70,
+      "width": 580,
+      "height": 80
+    },
+    {
+      "id": "s2",
+      "type": "text",
+      "text": "**[WebCacheClient — Python lib]**\nComputes `content_hash = blake3(content.encode()).hexdigest()` locally",
+      "x": 0,
+      "y": 200,
+      "width": 580,
+      "height": 80
+    },
+    {
+      "id": "s3",
+      "type": "text",
+      "text": "**[WebCacheClient]**\n`POST /cache` with JSON body:\n`{ url, content, content_hash, client_name, bucket, [prefix, cookies, response_metadata] }`",
+      "x": 0,
+      "y": 330,
+      "width": 580,
+      "height": 100
+    },
+    {
+      "id": "s4",
+      "type": "text",
+      "text": "**[webcache service]**\nReceives and validates request payload",
+      "x": 0,
+      "y": 480,
+      "width": 580,
+      "height": 70
+    },
+    {
+      "id": "s5",
+      "type": "text",
+      "text": "**[webcache service]**\nWrites HTML content to local file storage (path keyed by bucket + content_hash)",
+      "x": 0,
+      "y": 600,
+      "width": 580,
+      "height": 80
+    },
+    {
+      "id": "s6",
+      "type": "text",
+      "text": "**[webcache service → PostgreSQL]**\nInserts cache entry row:\n`url, content_hash, bucket, client_name, stored_at, file_path, [prefix, cookies, response_metadata]`",
+      "x": 0,
+      "y": 730,
+      "width": 580,
+      "height": 100
+    },
+    {
+      "id": "s7",
+      "type": "text",
+      "text": "**[webcache service]**\nReturns `201 Created` with cache entry metadata JSON",
+      "x": 0,
+      "y": 880,
+      "width": 580,
+      "height": 70
+    },
+    {
+      "id": "end",
+      "type": "text",
+      "text": "**END**\n`client.store()` returns the metadata dict to the Scraper",
+      "x": 0,
+      "y": 1000,
+      "width": 580,
+      "height": 70,
+      "color": "4"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-title-start",
+      "fromNode": "title",
+      "toNode": "start"
+    },
+    {
+      "id": "e-start-s1",
+      "fromNode": "start",
+      "toNode": "s1"
+    },
+    {
+      "id": "e-s1-s2",
+      "fromNode": "s1",
+      "toNode": "s2"
+    },
+    {
+      "id": "e-s2-s3",
+      "fromNode": "s2",
+      "toNode": "s3",
+      "label": "REST/HTTP"
+    },
+    {
+      "id": "e-s3-s4",
+      "fromNode": "s3",
+      "toNode": "s4"
+    },
+    {
+      "id": "e-s4-s5",
+      "fromNode": "s4",
+      "toNode": "s5"
+    },
+    {
+      "id": "e-s5-s6",
+      "fromNode": "s5",
+      "toNode": "s6",
+      "label": "SQL"
+    },
+    {
+      "id": "e-s6-s7",
+      "fromNode": "s6",
+      "toNode": "s7"
+    },
+    {
+      "id": "e-s7-end",
+      "fromNode": "s7",
+      "toNode": "end"
+    }
+  ]
+}

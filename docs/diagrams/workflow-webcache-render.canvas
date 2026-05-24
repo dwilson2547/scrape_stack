@@ -1,0 +1,204 @@
+{
+  "nodes": [
+    {
+      "id": "title",
+      "type": "text",
+      "text": "# webcache — Server-Side Render\n`client.render(url, max_age=…)` → `GET /render` — uses cache lookup + browserless + request auth",
+      "x": 0,
+      "y": -200,
+      "width": 620,
+      "height": 90
+    },
+    {
+      "id": "start",
+      "type": "text",
+      "text": "**START**\nScraper needs fully-rendered HTML for a URL",
+      "x": 0,
+      "y": -60,
+      "width": 620,
+      "height": 70,
+      "color": "4"
+    },
+    {
+      "id": "s1",
+      "type": "text",
+      "text": "**[Scraper]**\nCalls `client.render(url, bucket=\"default\", max_age=7200)`",
+      "x": 0,
+      "y": 70,
+      "width": 620,
+      "height": 70
+    },
+    {
+      "id": "s2",
+      "type": "text",
+      "text": "**[WebCacheClient]**\n`GET /render?url=…&bucket=…&max_age=…` (timeout: 120 s)",
+      "x": 0,
+      "y": 190,
+      "width": 620,
+      "height": 70
+    },
+    {
+      "id": "s3",
+      "type": "text",
+      "text": "**[webcache service → PostgreSQL]**\nLooks up URL in cache; compares `stored_at` against `max_age`",
+      "x": 0,
+      "y": 310,
+      "width": 620,
+      "height": 80
+    },
+    {
+      "id": "decision",
+      "type": "text",
+      "text": "Cache hit and still fresh?",
+      "x": 160,
+      "y": 440,
+      "width": 300,
+      "height": 60,
+      "color": "3"
+    },
+    {
+      "id": "hit",
+      "type": "text",
+      "text": "**YES — cache hit**\nReturn stored content + metadata immediately\n(no outbound request made)",
+      "x": -260,
+      "y": 560,
+      "width": 320,
+      "height": 90,
+      "color": "4"
+    },
+    {
+      "id": "miss-s1",
+      "type": "text",
+      "text": "**NO — miss or stale**\n**[webcache service → request-auth-server]**\nAcquire permit: `permit = ra_client.acquire(domain)` via gRPC bidi stream\n— blocks until server grants",
+      "x": 200,
+      "y": 560,
+      "width": 380,
+      "height": 100,
+      "color": "2"
+    },
+    {
+      "id": "miss-s2",
+      "type": "text",
+      "text": "**[webcache service → browserless]**\nPOST puppeteer script to render the URL\nReceives: rendered HTML, cookies, response metadata",
+      "x": 200,
+      "y": 710,
+      "width": 380,
+      "height": 90,
+      "color": "2"
+    },
+    {
+      "id": "miss-s3",
+      "type": "text",
+      "text": "**[webcache service]**\nWrites rendered HTML to local file storage\nInserts cache entry into PostgreSQL",
+      "x": 200,
+      "y": 850,
+      "width": 380,
+      "height": 80,
+      "color": "2"
+    },
+    {
+      "id": "miss-s4",
+      "type": "text",
+      "text": "**[webcache service → request-auth-server]**\n`permit.release(status_code)` via gRPC stream\nServer applies backoff, releases pool slot",
+      "x": 200,
+      "y": 980,
+      "width": 380,
+      "height": 90,
+      "color": "2"
+    },
+    {
+      "id": "merge",
+      "type": "text",
+      "text": "**[webcache service]**\nReturns rendered content, cookies, response_metadata,\nand all standard cache entry fields",
+      "x": 0,
+      "y": 1130,
+      "width": 620,
+      "height": 80
+    },
+    {
+      "id": "end",
+      "type": "text",
+      "text": "**END**\n`client.render()` returns the dict (or `None` on 404) to the Scraper",
+      "x": 0,
+      "y": 1260,
+      "width": 620,
+      "height": 70,
+      "color": "4"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-title-start",
+      "fromNode": "title",
+      "toNode": "start"
+    },
+    {
+      "id": "e-start-s1",
+      "fromNode": "start",
+      "toNode": "s1"
+    },
+    {
+      "id": "e-s1-s2",
+      "fromNode": "s1",
+      "toNode": "s2",
+      "label": "REST/HTTP"
+    },
+    {
+      "id": "e-s2-s3",
+      "fromNode": "s2",
+      "toNode": "s3",
+      "label": "SQL"
+    },
+    {
+      "id": "e-s3-dec",
+      "fromNode": "s3",
+      "toNode": "decision"
+    },
+    {
+      "id": "e-dec-hit",
+      "fromNode": "decision",
+      "toNode": "hit",
+      "label": "fresh cache hit"
+    },
+    {
+      "id": "e-dec-miss",
+      "fromNode": "decision",
+      "toNode": "miss-s1",
+      "label": "miss or stale"
+    },
+    {
+      "id": "e-miss-s1-s2",
+      "fromNode": "miss-s1",
+      "toNode": "miss-s2",
+      "label": "gRPC bidi stream — permit granted"
+    },
+    {
+      "id": "e-miss-s2-s3",
+      "fromNode": "miss-s2",
+      "toNode": "miss-s3",
+      "label": "REST/HTTP"
+    },
+    {
+      "id": "e-miss-s3-s4",
+      "fromNode": "miss-s3",
+      "toNode": "miss-s4",
+      "label": "SQL"
+    },
+    {
+      "id": "e-hit-merge",
+      "fromNode": "hit",
+      "toNode": "merge"
+    },
+    {
+      "id": "e-miss-s4-merge",
+      "fromNode": "miss-s4",
+      "toNode": "merge",
+      "label": "gRPC bidi stream — permit released"
+    },
+    {
+      "id": "e-merge-end",
+      "fromNode": "merge",
+      "toNode": "end"
+    }
+  ]
+}

@@ -1,0 +1,219 @@
+{
+  "nodes": [
+    {
+      "id": "title",
+      "type": "text",
+      "text": "# filecache / vidcache — Server-Side Download\n`client.server_download(url, bucket, …)` → `POST /download`\nService fetches the URL itself under request-auth rate limiting. Client never handles bytes.",
+      "x": 0,
+      "y": -240,
+      "width": 640,
+      "height": 110
+    },
+    {
+      "id": "start",
+      "type": "text",
+      "text": "**START**\nScraper wants the service to download and cache a URL directly",
+      "x": 0,
+      "y": -70,
+      "width": 640,
+      "height": 70,
+      "color": "4"
+    },
+    {
+      "id": "s1",
+      "type": "text",
+      "text": "**[Scraper]**\nCalls `client.server_download(url, bucket, filename=…, prefix=…, meta=…, cookies=…, headers=…)`",
+      "x": 0,
+      "y": 60,
+      "width": 640,
+      "height": 80
+    },
+    {
+      "id": "s2",
+      "type": "text",
+      "text": "**[StreamingCacheClient]**\n`POST /download` with JSON:\n`{ url, bucket, [filename, prefix, meta, cookies, headers] }`",
+      "x": 0,
+      "y": 190,
+      "width": 640,
+      "height": 90
+    },
+    {
+      "id": "s3",
+      "type": "text",
+      "text": "**[service → PostgreSQL]**\nDedup check: looks up URL in this bucket",
+      "x": 0,
+      "y": 330,
+      "width": 640,
+      "height": 70
+    },
+    {
+      "id": "decision",
+      "type": "text",
+      "text": "URL already cached?",
+      "x": 170,
+      "y": 450,
+      "width": 300,
+      "height": 60,
+      "color": "3"
+    },
+    {
+      "id": "hit",
+      "type": "text",
+      "text": "**YES — cache hit**\nReturn existing entry immediately\n(no outbound request made)",
+      "x": -260,
+      "y": 570,
+      "width": 320,
+      "height": 90,
+      "color": "4"
+    },
+    {
+      "id": "miss-s1",
+      "type": "text",
+      "text": "**NO — not cached**\n**[service → request-auth-server]**\nAcquires permit: `permit = ra_client.acquire(domain)` via gRPC bidi stream\n— blocks until server grants",
+      "x": 200,
+      "y": 570,
+      "width": 400,
+      "height": 100,
+      "color": "2"
+    },
+    {
+      "id": "miss-s2",
+      "type": "text",
+      "text": "**[service → target site]**\nMakes HTTP GET to the URL (applying any provided cookies/headers)\nStreams response bytes as they arrive",
+      "x": 200,
+      "y": 720,
+      "width": 400,
+      "height": 90,
+      "color": "2"
+    },
+    {
+      "id": "miss-s3",
+      "type": "text",
+      "text": "**[service]**\nWrites bytes to local file storage\nComputes blake3 content hash",
+      "x": 200,
+      "y": 860,
+      "width": 400,
+      "height": 80,
+      "color": "2"
+    },
+    {
+      "id": "miss-s4",
+      "type": "text",
+      "text": "**[service → PostgreSQL]**\nInserts cache entry: `url, hash, bucket, file_path, size_bytes, stored_at, [filename, prefix, meta]`",
+      "x": 200,
+      "y": 990,
+      "width": 400,
+      "height": 80,
+      "color": "2"
+    },
+    {
+      "id": "miss-s5",
+      "type": "text",
+      "text": "**[service → request-auth-server]**\n`permit.release(status_code)` via gRPC stream\nServer applies backoff, releases pool slot",
+      "x": 200,
+      "y": 1120,
+      "width": 400,
+      "height": 90,
+      "color": "2"
+    },
+    {
+      "id": "merge",
+      "type": "text",
+      "text": "**[service]**\nReturns `{ status, hash, file_path, size_bytes }` to client",
+      "x": 0,
+      "y": 1270,
+      "width": 640,
+      "height": 70
+    },
+    {
+      "id": "end",
+      "type": "text",
+      "text": "**END**\n`client.server_download()` returns result dict to Scraper",
+      "x": 0,
+      "y": 1390,
+      "width": 640,
+      "height": 70,
+      "color": "4"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-title-start",
+      "fromNode": "title",
+      "toNode": "start"
+    },
+    {
+      "id": "e-start-s1",
+      "fromNode": "start",
+      "toNode": "s1"
+    },
+    {
+      "id": "e-s1-s2",
+      "fromNode": "s1",
+      "toNode": "s2",
+      "label": "REST/HTTP"
+    },
+    {
+      "id": "e-s2-s3",
+      "fromNode": "s2",
+      "toNode": "s3",
+      "label": "SQL"
+    },
+    {
+      "id": "e-s3-dec",
+      "fromNode": "s3",
+      "toNode": "decision"
+    },
+    {
+      "id": "e-dec-hit",
+      "fromNode": "decision",
+      "toNode": "hit",
+      "label": "already cached"
+    },
+    {
+      "id": "e-dec-miss",
+      "fromNode": "decision",
+      "toNode": "miss-s1",
+      "label": "not cached"
+    },
+    {
+      "id": "e-miss-s1-s2",
+      "fromNode": "miss-s1",
+      "toNode": "miss-s2",
+      "label": "gRPC bidi stream — permit granted"
+    },
+    {
+      "id": "e-miss-s2-s3",
+      "fromNode": "miss-s2",
+      "toNode": "miss-s3",
+      "label": "HTTP response bytes"
+    },
+    {
+      "id": "e-miss-s3-s4",
+      "fromNode": "miss-s3",
+      "toNode": "miss-s4",
+      "label": "SQL"
+    },
+    {
+      "id": "e-miss-s4-s5",
+      "fromNode": "miss-s4",
+      "toNode": "miss-s5"
+    },
+    {
+      "id": "e-hit-merge",
+      "fromNode": "hit",
+      "toNode": "merge"
+    },
+    {
+      "id": "e-miss-s5-merge",
+      "fromNode": "miss-s5",
+      "toNode": "merge",
+      "label": "gRPC bidi stream — permit released"
+    },
+    {
+      "id": "e-merge-end",
+      "fromNode": "merge",
+      "toNode": "end"
+    }
+  ]
+}

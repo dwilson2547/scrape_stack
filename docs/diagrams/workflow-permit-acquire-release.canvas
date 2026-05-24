@@ -1,0 +1,241 @@
+{
+  "nodes": [
+    {
+      "id": "title",
+      "type": "text",
+      "text": "# Request Auth — Acquire Permit → Make Request → Release\nFlow for scrapers and cache services obtaining a rate-limited permit before any outbound web request.",
+      "x": 0,
+      "y": -200,
+      "width": 560,
+      "height": 90
+    },
+    {
+      "id": "start",
+      "type": "text",
+      "text": "**START**\nScraper (or cache service) needs to make an outbound HTTP request",
+      "x": 0,
+      "y": -60,
+      "width": 560,
+      "height": 70,
+      "color": "4"
+    },
+    {
+      "id": "s1",
+      "type": "text",
+      "text": "**[Scraper / cache service]**\n`permit = client.acquire(\"domain.com\")` — call blocks until permit is granted",
+      "x": 0,
+      "y": 70,
+      "width": 560,
+      "height": 80
+    },
+    {
+      "id": "s2",
+      "type": "text",
+      "text": "**[RequestAuthClient — Python lib]**\nEnqueues `PermitRequest { domain, req_id }` and sends it over the open gRPC bidi stream",
+      "x": 0,
+      "y": 200,
+      "width": 560,
+      "height": 80
+    },
+    {
+      "id": "s3",
+      "type": "text",
+      "text": "**[request-auth-server — Go]**\nReceives request; reads domain bucket config from Postgres\nChecks active permit count against configured pool limit",
+      "x": 0,
+      "y": 330,
+      "width": 560,
+      "height": 90
+    },
+    {
+      "id": "decision",
+      "type": "text",
+      "text": "Pool has capacity?",
+      "x": 130,
+      "y": 470,
+      "width": 300,
+      "height": 60,
+      "color": "3"
+    },
+    {
+      "id": "branch-yes",
+      "type": "text",
+      "text": "**YES — capacity available**\nPermit issued immediately",
+      "x": -220,
+      "y": 590,
+      "width": 280,
+      "height": 70,
+      "color": "4"
+    },
+    {
+      "id": "branch-no",
+      "type": "text",
+      "text": "**NO — at capacity**\nRequest queued; waits until a running permit is returned and backoff expires",
+      "x": 320,
+      "y": 590,
+      "width": 320,
+      "height": 80,
+      "color": "2"
+    },
+    {
+      "id": "s5",
+      "type": "text",
+      "text": "**[request-auth-server]**\nSends `PermitGrant { permit_id, req_id }` back via gRPC stream to the waiting caller",
+      "x": 0,
+      "y": 740,
+      "width": 560,
+      "height": 80
+    },
+    {
+      "id": "s6",
+      "type": "text",
+      "text": "**[RequestAuthClient]**\nReceives grant, resolves the pending result queue for `req_id`\nReturns a `Permit` object to the caller — `acquire()` unblocks",
+      "x": 0,
+      "y": 870,
+      "width": 560,
+      "height": 90
+    },
+    {
+      "id": "s7",
+      "type": "text",
+      "text": "**[Scraper / cache service]**\nMakes the outbound HTTP request to the target site\n`response = requests.get(url)`",
+      "x": 0,
+      "y": 1010,
+      "width": 560,
+      "height": 80
+    },
+    {
+      "id": "s8",
+      "type": "text",
+      "text": "**[Scraper / cache service]**\nCalls `permit.release(response.status_code)` — or exits the `with client.acquire(…) as permit:` context manager\n(auto-releases with code 0 on exception)",
+      "x": 0,
+      "y": 1140,
+      "width": 560,
+      "height": 90
+    },
+    {
+      "id": "s9",
+      "type": "text",
+      "text": "**[RequestAuthClient]**\nSends `PermitReturn { permit_id, status_code }` via gRPC stream",
+      "x": 0,
+      "y": 1280,
+      "width": 560,
+      "height": 80
+    },
+    {
+      "id": "s10",
+      "type": "text",
+      "text": "**[request-auth-server]**\nRecords response status code\nApplies per-domain backoff timer (configurable; informed by robots.txt or admin override)",
+      "x": 0,
+      "y": 1410,
+      "width": 560,
+      "height": 90
+    },
+    {
+      "id": "s11",
+      "type": "text",
+      "text": "**[request-auth-server]**\nWhen backoff expires: decrements active count, issues permit to the\nnext queued request for the domain (if any)",
+      "x": 0,
+      "y": 1550,
+      "width": 560,
+      "height": 90
+    },
+    {
+      "id": "end",
+      "type": "text",
+      "text": "**END** — Permit returned to pool; domain rate limit enforced",
+      "x": 0,
+      "y": 1690,
+      "width": 560,
+      "height": 60,
+      "color": "4"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-title-start",
+      "fromNode": "title",
+      "toNode": "start"
+    },
+    {
+      "id": "e-start-s1",
+      "fromNode": "start",
+      "toNode": "s1"
+    },
+    {
+      "id": "e-s1-s2",
+      "fromNode": "s1",
+      "toNode": "s2",
+      "label": "gRPC bidi stream"
+    },
+    {
+      "id": "e-s2-s3",
+      "fromNode": "s2",
+      "toNode": "s3"
+    },
+    {
+      "id": "e-s3-dec",
+      "fromNode": "s3",
+      "toNode": "decision"
+    },
+    {
+      "id": "e-dec-yes",
+      "fromNode": "decision",
+      "toNode": "branch-yes",
+      "label": "capacity available"
+    },
+    {
+      "id": "e-dec-no",
+      "fromNode": "decision",
+      "toNode": "branch-no",
+      "label": "at capacity"
+    },
+    {
+      "id": "e-yes-s5",
+      "fromNode": "branch-yes",
+      "toNode": "s5"
+    },
+    {
+      "id": "e-no-s5",
+      "fromNode": "branch-no",
+      "toNode": "s5",
+      "label": "when slot opens"
+    },
+    {
+      "id": "e-s5-s6",
+      "fromNode": "s5",
+      "toNode": "s6",
+      "label": "gRPC bidi stream"
+    },
+    {
+      "id": "e-s6-s7",
+      "fromNode": "s6",
+      "toNode": "s7"
+    },
+    {
+      "id": "e-s7-s8",
+      "fromNode": "s7",
+      "toNode": "s8"
+    },
+    {
+      "id": "e-s8-s9",
+      "fromNode": "s8",
+      "toNode": "s9",
+      "label": "gRPC bidi stream"
+    },
+    {
+      "id": "e-s9-s10",
+      "fromNode": "s9",
+      "toNode": "s10"
+    },
+    {
+      "id": "e-s10-s11",
+      "fromNode": "s10",
+      "toNode": "s11"
+    },
+    {
+      "id": "e-s11-end",
+      "fromNode": "s11",
+      "toNode": "end"
+    }
+  ]
+}
