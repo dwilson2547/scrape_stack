@@ -1,0 +1,390 @@
+{
+  "nodes": [
+    {
+      "id": "scraper",
+      "type": "text",
+      "text": "## Scraper / Client\n*external caller*",
+      "x": -1700,
+      "y": 50,
+      "width": 220,
+      "height": 80
+    },
+    {
+      "id": "admin",
+      "type": "text",
+      "text": "## Admin User\n*browser*",
+      "x": -1700,
+      "y": 760,
+      "width": 220,
+      "height": 80
+    },
+    {
+      "id": "cache-services-group",
+      "type": "group",
+      "label": "Cache Services",
+      "x": -1350,
+      "y": -300,
+      "width": 360,
+      "height": 520
+    },
+    {
+      "id": "webcache",
+      "type": "text",
+      "text": "## webcache\n:8000",
+      "x": -1310,
+      "y": -220,
+      "width": 280,
+      "height": 70,
+      "color": "5"
+    },
+    {
+      "id": "imgcache",
+      "type": "text",
+      "text": "## imgcache\n:8010",
+      "x": -1310,
+      "y": -120,
+      "width": 280,
+      "height": 70,
+      "color": "5"
+    },
+    {
+      "id": "filecache",
+      "type": "text",
+      "text": "## filecache\n:8030",
+      "x": -1310,
+      "y": -20,
+      "width": 280,
+      "height": 70,
+      "color": "5"
+    },
+    {
+      "id": "vidcache",
+      "type": "text",
+      "text": "## vidcache\n:8020",
+      "x": -1310,
+      "y": 80,
+      "width": 280,
+      "height": 70,
+      "color": "5"
+    },
+    {
+      "id": "request-auth-group",
+      "type": "group",
+      "label": "Request Authorization",
+      "x": -750,
+      "y": -300,
+      "width": 460,
+      "height": 460
+    },
+    {
+      "id": "ra-server",
+      "type": "text",
+      "text": "## request-auth-server\n:9000 gRPC  ·  :9003 HTTP",
+      "x": -710,
+      "y": -220,
+      "width": 380,
+      "height": 80,
+      "color": "3"
+    },
+    {
+      "id": "ra-api",
+      "type": "text",
+      "text": "## request-auth-api\n:9001 REST",
+      "x": -710,
+      "y": -80,
+      "width": 380,
+      "height": 70,
+      "color": "3"
+    },
+    {
+      "id": "ra-ui",
+      "type": "text",
+      "text": "## request-auth-ui\n:9002",
+      "x": -710,
+      "y": 40,
+      "width": 380,
+      "height": 70,
+      "color": "3"
+    },
+    {
+      "id": "postgres",
+      "type": "text",
+      "text": "## PostgreSQL\n:5433 host  ·  :5432 internal",
+      "x": -30,
+      "y": -100,
+      "width": 280,
+      "height": 80,
+      "color": "4"
+    },
+    {
+      "id": "browserless",
+      "type": "text",
+      "text": "## browserless\n:4000 host  ·  :3000 internal",
+      "x": -30,
+      "y": 200,
+      "width": 280,
+      "height": 80,
+      "color": "4"
+    },
+    {
+      "id": "cache-browser-group",
+      "type": "group",
+      "label": "Cache Browser",
+      "x": -1350,
+      "y": 560,
+      "width": 860,
+      "height": 180
+    },
+    {
+      "id": "cb-ui",
+      "type": "text",
+      "text": "## cache-browser-ui\n:8041",
+      "x": -1310,
+      "y": 610,
+      "width": 280,
+      "height": 70,
+      "color": "2"
+    },
+    {
+      "id": "cb-api",
+      "type": "text",
+      "text": "## cache-browser-api\n:8040",
+      "x": -900,
+      "y": 610,
+      "width": 280,
+      "height": 70,
+      "color": "2"
+    },
+    {
+      "id": "monitoring-group",
+      "type": "group",
+      "label": "Optional Monitoring",
+      "x": 420,
+      "y": -300,
+      "width": 380,
+      "height": 460
+    },
+    {
+      "id": "otel",
+      "type": "text",
+      "text": "## OTEL Collector\n:4317 gRPC  ·  :4318 HTTP",
+      "x": 460,
+      "y": -220,
+      "width": 300,
+      "height": 80,
+      "color": "6"
+    },
+    {
+      "id": "prometheus",
+      "type": "text",
+      "text": "## Prometheus\n:9090",
+      "x": 460,
+      "y": -80,
+      "width": 300,
+      "height": 70,
+      "color": "6"
+    },
+    {
+      "id": "grafana",
+      "type": "text",
+      "text": "## Grafana\n:3000",
+      "x": 460,
+      "y": 50,
+      "width": 300,
+      "height": 70,
+      "color": "6"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-sc-web",
+      "fromNode": "scraper",
+      "toNode": "webcache",
+      "label": "REST/HTTP"
+    },
+    {
+      "id": "e-sc-img",
+      "fromNode": "scraper",
+      "toNode": "imgcache",
+      "label": "REST/HTTP"
+    },
+    {
+      "id": "e-sc-file",
+      "fromNode": "scraper",
+      "toNode": "filecache",
+      "label": "REST/HTTP"
+    },
+    {
+      "id": "e-sc-vid",
+      "fromNode": "scraper",
+      "toNode": "vidcache",
+      "label": "REST/HTTP"
+    },
+    {
+      "id": "e-sc-ra",
+      "fromNode": "scraper",
+      "toNode": "ra-server",
+      "label": "gRPC bidi stream"
+    },
+    {
+      "id": "e-web-ra",
+      "fromNode": "webcache",
+      "toNode": "ra-server",
+      "label": "gRPC bidi stream"
+    },
+    {
+      "id": "e-img-ra",
+      "fromNode": "imgcache",
+      "toNode": "ra-server",
+      "label": "gRPC bidi stream"
+    },
+    {
+      "id": "e-file-ra",
+      "fromNode": "filecache",
+      "toNode": "ra-server",
+      "label": "gRPC bidi stream"
+    },
+    {
+      "id": "e-vid-ra",
+      "fromNode": "vidcache",
+      "toNode": "ra-server",
+      "label": "gRPC bidi stream"
+    },
+    {
+      "id": "e-web-pg",
+      "fromNode": "webcache",
+      "toNode": "postgres",
+      "label": "SQL"
+    },
+    {
+      "id": "e-img-pg",
+      "fromNode": "imgcache",
+      "toNode": "postgres",
+      "label": "SQL"
+    },
+    {
+      "id": "e-file-pg",
+      "fromNode": "filecache",
+      "toNode": "postgres",
+      "label": "SQL"
+    },
+    {
+      "id": "e-vid-pg",
+      "fromNode": "vidcache",
+      "toNode": "postgres",
+      "label": "SQL"
+    },
+    {
+      "id": "e-web-bl",
+      "fromNode": "webcache",
+      "toNode": "browserless",
+      "label": "REST/HTTP"
+    },
+    {
+      "id": "e-ra-srv-pg",
+      "fromNode": "ra-server",
+      "toNode": "postgres",
+      "label": "SQL"
+    },
+    {
+      "id": "e-ra-api-pg",
+      "fromNode": "ra-api",
+      "toNode": "postgres",
+      "label": "SQL"
+    },
+    {
+      "id": "e-ra-ui-api",
+      "fromNode": "ra-ui",
+      "toNode": "ra-api",
+      "label": "REST/HTTP"
+    },
+    {
+      "id": "e-ra-api-srv",
+      "fromNode": "ra-api",
+      "toNode": "ra-server",
+      "label": "REST/HTTP"
+    },
+    {
+      "id": "e-admin-ra-ui",
+      "fromNode": "admin",
+      "toNode": "ra-ui",
+      "label": "browser"
+    },
+    {
+      "id": "e-admin-cb-ui",
+      "fromNode": "admin",
+      "toNode": "cb-ui",
+      "label": "browser"
+    },
+    {
+      "id": "e-cb-ui-api",
+      "fromNode": "cb-ui",
+      "toNode": "cb-api",
+      "label": "REST/HTTP"
+    },
+    {
+      "id": "e-cb-web",
+      "fromNode": "cb-api",
+      "toNode": "webcache",
+      "label": "REST/HTTP"
+    },
+    {
+      "id": "e-cb-img",
+      "fromNode": "cb-api",
+      "toNode": "imgcache",
+      "label": "REST/HTTP"
+    },
+    {
+      "id": "e-cb-file",
+      "fromNode": "cb-api",
+      "toNode": "filecache",
+      "label": "REST/HTTP"
+    },
+    {
+      "id": "e-cb-vid",
+      "fromNode": "cb-api",
+      "toNode": "vidcache",
+      "label": "REST/HTTP"
+    },
+    {
+      "id": "e-web-otel",
+      "fromNode": "webcache",
+      "toNode": "otel",
+      "label": "OTLP"
+    },
+    {
+      "id": "e-img-otel",
+      "fromNode": "imgcache",
+      "toNode": "otel",
+      "label": "OTLP"
+    },
+    {
+      "id": "e-file-otel",
+      "fromNode": "filecache",
+      "toNode": "otel",
+      "label": "OTLP"
+    },
+    {
+      "id": "e-vid-otel",
+      "fromNode": "vidcache",
+      "toNode": "otel",
+      "label": "OTLP"
+    },
+    {
+      "id": "e-ra-otel",
+      "fromNode": "ra-server",
+      "toNode": "otel",
+      "label": "OTLP"
+    },
+    {
+      "id": "e-otel-prom",
+      "fromNode": "otel",
+      "toNode": "prometheus"
+    },
+    {
+      "id": "e-prom-graf",
+      "fromNode": "prometheus",
+      "toNode": "grafana"
+    }
+  ]
+}
