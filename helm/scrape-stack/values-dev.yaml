@@ -10,7 +10,7 @@ postgres:
   host: postgres-dev.postgres.svc.cluster.local
   existingSecret: postgres-credentials
 
-imagePullPolicy: IfNotPresent
+imagePullPolicy: Always
 
 persistence:
   webcache:
