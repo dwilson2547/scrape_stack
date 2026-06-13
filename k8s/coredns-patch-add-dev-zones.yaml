@@ -1,0 +1,62 @@
+# Strategic merge patch — adds scrapestack-dev.local zone to the prod CoreDNS ConfigMap.
+# Leaves db.scrapestack.local and db.monitoring.local untouched.
+#
+# Apply:
+#   kubectl patch configmap coredns-local-config -n scrape-stack \
+#     --type=strategic --patch-file=coredns-patch-add-dev-zones.yaml
+#
+# Then restart CoreDNS to pick up the new config immediately:
+#   kubectl rollout restart deployment/coredns-local -n scrape-stack
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-local-config
+  namespace: scrape-stack
+data:
+  Corefile: |
+    scrapestack.local:53 {
+        file /etc/coredns/db.scrapestack.local
+        log
+        errors
+    }
+
+    monitoring.local:53 {
+        file /etc/coredns/db.monitoring.local
+        log
+        errors
+    }
+
+    scrapestack-dev.local:53 {
+        file /etc/coredns/db.scrapestack-dev.local
+        log
+        errors
+    }
+
+    .:53 {
+        forward . 8.8.8.8 1.1.1.1
+        cache 30
+        log
+        errors
+        health :8080
+        ready :8181
+    }
+  db.scrapestack-dev.local: |
+    $ORIGIN scrapestack-dev.local.
+    $TTL 300
+
+    @   IN  SOA  ns1.scrapestack.local. admin.scrapestack.local. (
+                    2026052101 ; serial
+                    3600       ; refresh
+                    900        ; retry
+                    86400      ; expire
+                    300        ; minimum TTL
+                 )
+
+    @   IN  NS   ns1.scrapestack.local.
+
+    ; All subdomains → Traefik ingress controller
+    @   IN  A    192.168.0.60
+    *   IN  A    192.168.0.60
+
+    ; dev gRPC LoadBalancer — explicit record overrides the wildcard
+    request-auth-server  IN  A  192.168.0.63
