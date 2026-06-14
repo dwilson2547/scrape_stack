@@ -1,0 +1,77 @@
+name: http-test-service-ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      service: ${{ steps.filter.outputs.service }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            service:
+              - 'server.py'
+              - 'load_gen.py'
+              - 'test_service.py'
+              - 'perf_test/**'
+              - 'requirements.txt'
+              - 'config.yaml'
+              - 'Dockerfile'
+              - 'docker-compose.yaml'
+              - '.github/workflows/**'
+
+  pr-build:
+    if: github.event_name == 'pull_request' && needs.changes.outputs.service == 'true'
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Compile sources
+        run: python -m py_compile server.py load_gen.py test_service.py perf_test/perf_test.py
+      - name: Build Docker image
+        run: docker build -f Dockerfile -t http-test-service:ci .
+
+  publish-image:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.service == 'true'
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - id: tags
+        run: |
+          echo "sha_tag=sha-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          echo "date_tag=$(date -u +%Y%m%d).${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/http-test-service:${{ steps.tags.outputs.sha_tag }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/http-test-service:${{ steps.tags.outputs.date_tag }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/http-test-service:latest
+

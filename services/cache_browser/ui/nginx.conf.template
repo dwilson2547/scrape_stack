@@ -1,0 +1,59 @@
+server {
+    listen 80;
+    server_name _;
+
+    # Use the cluster/container DNS resolver; valid timeout prevents caching
+    # stale addresses when upstreams restart.
+    resolver ${NGINX_RESOLVER} valid=10s ipv6=off;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api/ {
+        set $upstream_api ${API_HOST};
+        proxy_pass http://$upstream_api:${API_PORT}/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /proxy/web/ {
+        set $upstream_web ${WEBCACHE_HOST};
+        rewrite ^/proxy/web/(.*) /$1 break;
+        proxy_pass http://$upstream_web:${WEBCACHE_PORT};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /proxy/image/ {
+        set $upstream_img ${IMGCACHE_HOST};
+        rewrite ^/proxy/image/(.*) /$1 break;
+        proxy_pass http://$upstream_img:${IMGCACHE_PORT};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /proxy/file/ {
+        set $upstream_file ${FILECACHE_HOST};
+        rewrite ^/proxy/file/(.*) /$1 break;
+        proxy_pass http://$upstream_file:${FILECACHE_PORT};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /proxy/video/ {
+        set $upstream_vid ${VIDCACHE_HOST};
+        rewrite ^/proxy/video/(.*) /$1 break;
+        proxy_pass http://$upstream_vid:${VIDCACHE_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Connection "";
+        proxy_buffering off;
+    }
+}

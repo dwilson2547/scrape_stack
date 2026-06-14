@@ -1,0 +1,12 @@
+.superpowers/
+data/
+*.db
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+node_modules/
+ui/dist/
+server/app/proto/*.go
+client/proto/*_pb2*.py
+client/proto/*_pb2_grpc*.py

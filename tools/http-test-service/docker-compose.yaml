@@ -1,0 +1,11 @@
+services:
+  testbed:
+    build: .
+    ports:
+      - "9004:9004"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+    environment:
+      CONFIG_PATH: /app/config.yaml
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

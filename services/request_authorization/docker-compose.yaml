@@ -1,0 +1,49 @@
+services:
+  server:
+    image: dwilson2547/request-auth-server:latest
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    ports:
+      - "9000:9000"   # gRPC
+      - "9003:9003"   # HTTP status
+    environment:
+      DB_PATH: /data/request_auth.db
+      GRPC_ADDR: :9000
+      STATUS_ADDR: :9003
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://host.docker.internal:4317
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9003 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+  api:
+    image: dwilson2547/request-auth-api:latest
+    build: ./api
+    ports:
+      - "9001:8000"
+    environment:
+      DB_PATH: /data/request_auth.db
+      GRPC_STATUS_URL: http://server:9003/status
+    volumes:
+      - ./data:/data
+    depends_on:
+      server:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ui:
+    image: dwilson2547/request-auth-ui:latest
+    build: ./ui
+    ports:
+      - "9002:80"
+    depends_on:
+      - api
+    restart: unless-stopped

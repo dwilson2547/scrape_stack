@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dwilson-request-auth-client"
+version = "0.1.3"
+description = "Python client for the Request Authorization gRPC service"
+readme = "readme.md"
+requires-python = ">=3.11"
+dependencies = [
+    "grpcio>=1.80.0",
+    "protobuf>=6.31.1",
+]
+
+[tool.setuptools]
+py-modules = ["request_auth_client"]
+
+[tool.setuptools.packages.find]
+include = ["request_auth_proto", "request_auth_proto.*"]
