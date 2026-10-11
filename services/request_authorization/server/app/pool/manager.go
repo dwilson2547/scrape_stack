@@ -3,6 +3,7 @@ package pool
 import (
 	"context"
 	"log"
+	"sort"
 	"sync"
 	"time"
 
@@ -73,6 +74,8 @@ func (m *Manager) AllStatuses() []PoolStatus {
 	for _, p := range m.pools {
 		out = append(out, p.Status())
 	}
+	// Map iteration order is random; sort so the dashboard doesn't reshuffle every poll.
+	sort.Slice(out, func(i, j int) bool { return out[i].Domain < out[j].Domain })
 	return out
 }
 

@@ -11,7 +11,7 @@ export function Dashboard() {
   async function fetchStatus() {
     try {
       const data = await api.status.get()
-      setPools(data.pools)
+      setPools([...data.pools].sort((a, b) => a.domain.localeCompare(b.domain)))
       setLastUpdated(new Date())
       setError(null)
     } catch (e) {
