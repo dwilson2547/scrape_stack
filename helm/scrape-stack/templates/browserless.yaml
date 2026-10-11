@@ -25,9 +25,9 @@ spec:
             - containerPort: 3000
           env:
             - name: MAX_CONCURRENT_SESSIONS
-              value: "5"
+              value: {{ .Values.browserless.maxConcurrentSessions | int | quote }}
             - name: CONNECTION_TIMEOUT
-              value: "60000"
+              value: {{ .Values.browserless.connectionTimeoutMs | int | quote }}
 ---
 apiVersion: v1
 kind: Service
