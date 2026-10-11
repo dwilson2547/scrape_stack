@@ -4,7 +4,7 @@ Backlog imported from the retired todo store, 2026-07-06.
 
 ## Urgent
 
-- [ ] **Replace scrape-stack Kubernetes deployment with prod Helm chart** — Tear down the existing scrape-stack deployment in Kubernetes and replace it with the production Helm chart. See notes: scrape-stack operations guide.
+- [x] **Replace scrape-stack Kubernetes deployment with prod Helm chart** — Done (verified 2026-10-11): every Deployment/Service/Ingress in namespace `scrape-stack` is owned by Argo app `scrape-stack`, rendered from `helm/scrape-stack` on `main`, Synced/Healthy.
 - [ ] **Migrate scrape-stack services to AiStor S3 storage** — Move the scrape-stack services to the AiStor S3-compatible storage on 192.168.0.10 so object storage is centralized off the current local backends.
 
 ## High
