@@ -64,3 +64,9 @@ monitoring:
   otelCollector:
     httpEndpoint: "http://otel-collector.monitoring.svc.cluster.local:4318"
     grpcEndpoint: "otel-collector.monitoring.svc.cluster.local:4317"
+
+browserless:
+  maxConcurrentSessions: 5
+  # Default lifetime of a session in ms, after which browserless closes it. A client can ask for its own
+  # with ?timeout=<ms> on the connect URL (long-running scrapers such as the parts-direct updater do).
+  connectionTimeoutMs: 3600000
