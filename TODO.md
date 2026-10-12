@@ -14,6 +14,7 @@ Backlog imported from the retired todo store, 2026-07-06.
 
 ## Medium
 
+- [ ] **Request-auth UI: live pool cards still shuffle** — server `AllStatuses()` and the Dashboard both sort by domain now (4a614bf), UI rolled out 2026-10-12, but the user still sees cards jump on refresh. Prod request-auth-server not restarted yet (scrapers were running), so the server-side sort isn't live; re-check after a restart before digging further.
 - [ ] **Add optional Kubernetes VPN proxy wiring for scraper deployments** — Add a deployment option so scraper workloads in Kubernetes can be routed through the existing VPN proxy when needed.
 - [ ] **Add S3-compatible backend support to vidcache** — Update vidcache so it can use an S3-compatible object store instead of only supporting the local filesystem backend.
 - [ ] **Test imgcache deduplication end-to-end** — Do full testing around the imgcache deduplication requirement and verify it behaves as expected under repeated uploads and retrievals.
