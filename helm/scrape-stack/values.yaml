@@ -11,7 +11,9 @@ postgres:
   existingSecret: postgres-credentials
 
 images:
-  browserless: browserless/chrome:latest
+  # Browserless 2.57.0 / Chrome 156, pinned by digest (`browserless/chrome:latest` had silently stayed
+  # on 1.61.1 / Chrome 121, which Cloudflare blocked).
+  browserless: ghcr.io/browserless/chromium@sha256:c4fd6493ff97936eb62cb35bbc19a428dda3d30905c3a59a28d9620f29b85db1
   requestAuthServer: dwilson2547/request-auth-server:latest
   requestAuthApi: dwilson2547/request-auth-api:latest
   requestAuthUi: dwilson2547/request-auth-ui:latest
@@ -66,7 +68,13 @@ monitoring:
     grpcEndpoint: "otel-collector.monitoring.svc.cluster.local:4317"
 
 browserless:
-  maxConcurrentSessions: 5
+  # Shared browser for short work: webcache's /render and token-only scrapers. Scrapers that drive a
+  # browser for a whole run bring their own sidecar (gyopart scraping.browserSidecar).
+  maxConcurrentSessions: 3
+  resources:
+    requests: {cpu: 500m, memory: 1Gi}
+    # ⚠ unverified sizing for 3 short sessions; without a limit one tab took 6.8 GB of a 32 GB node.
+    limits: {memory: 4Gi}
   # Default lifetime of a session in ms, after which browserless closes it. A client can ask for its own
   # with ?timeout=<ms> on the connect URL (long-running scrapers such as the parts-direct updater do).
   connectionTimeoutMs: 3600000

@@ -23,11 +23,19 @@ spec:
           imagePullPolicy: {{ .Values.imagePullPolicy }}
           ports:
             - containerPort: 3000
+          # Browserless v2 names (v1 was MAX_CONCURRENT_SESSIONS / CONNECTION_TIMEOUT).
           env:
-            - name: MAX_CONCURRENT_SESSIONS
+            - name: CONCURRENT
               value: {{ .Values.browserless.maxConcurrentSessions | int | quote }}
-            - name: CONNECTION_TIMEOUT
+            - name: TIMEOUT
               value: {{ .Values.browserless.connectionTimeoutMs | int | quote }}
+          readinessProbe:
+            httpGet: {path: /active, port: 3000}
+            periodSeconds: 10
+          {{- with .Values.browserless.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
 ---
 apiVersion: v1
 kind: Service

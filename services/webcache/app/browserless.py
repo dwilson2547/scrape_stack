@@ -4,10 +4,11 @@ import httpx
 
 from .config import settings
 
-# Playwright script executed by browserless /function.
+# Puppeteer function run by browserless v2's /function: an ES module whose return value comes back as
+# JSON as-is (v1's `module.exports` is rejected and a {data, type} envelope is not unwrapped).
 # Captures rendered HTML, cookies, and network request/response metadata.
 _RENDER_SCRIPT = """\
-module.exports = async ({ page, context }) => {
+export default async function ({ page, context }) {
   const requests = [];
   page.on('response', async (response) => {
     try {
@@ -23,13 +24,10 @@ module.exports = async ({ page, context }) => {
   await page.goto(context.url, { waitUntil: 'networkidle0', timeout: 30000 });
 
   const html = await page.content();
-  const cookies = await page.context().cookies();
+  const cookies = await page.cookies();
 
-  return {
-    data: { html, cookies, requests },
-    type: 'application/json'
-  };
-};
+  return { html, cookies, requests };
+}
 """
 
 
