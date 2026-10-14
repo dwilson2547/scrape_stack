@@ -15,10 +15,11 @@ lookup_total = _noop.create_counter("webcache.lookup.total")
 compressed_bytes = _noop.create_histogram("webcache.compressed.bytes")
 render_total = _noop.create_counter("webcache.render.total")
 render_duration = _noop.create_histogram("webcache.render.duration.seconds")
+evicted_total = _noop.create_counter("webcache.evicted.total")
 
 
 def setup_metrics(service_name: str = "webcache") -> None:
-    global store_total, lookup_total, compressed_bytes, render_total, render_duration
+    global store_total, lookup_total, compressed_bytes, render_total, render_duration, evicted_total
 
     resource = Resource({SERVICE_NAME: service_name})
     readers = []

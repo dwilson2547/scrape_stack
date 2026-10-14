@@ -26,6 +26,9 @@ def run_migrations(engine) -> None:
         if "prefix" not in cols:
             log.info("Migrating cache_entries: adding prefix column")
             _migrate_add_column(engine, "cache_entries", "prefix", "VARCHAR")
+        if "size_bytes" not in cols:
+            log.info("Migrating cache_entries: adding size_bytes column")
+            _migrate_add_column(engine, "cache_entries", "size_bytes", "INTEGER")
         if "lookup_time" in cols:
             log.info("Migrating cache_entries: dropping lookup_time column")
             with engine.begin() as conn:

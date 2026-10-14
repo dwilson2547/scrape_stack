@@ -15,12 +15,23 @@ class CacheEntry(Base):
     prefix: Mapped[str | None] = mapped_column(String, nullable=True)
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     client_name: Mapped[str] = mapped_column(String, nullable=False)
+    size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)  # LZ4-compressed size
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     retrieved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         Index("ix_cache_entries_bucket_url_created", "bucket", "url", "created_at"),
     )
+
+
+class BucketConfig(Base):
+    __tablename__ = "bucket_configs"
+
+    bucket: Mapped[str] = mapped_column(String, primary_key=True)
+    max_entries: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    max_total_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
 class RenderMetadata(Base):

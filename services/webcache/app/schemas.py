@@ -51,3 +51,25 @@ class RenderResponse(CacheEntryFull):
     cookies: list | None = None
     response_metadata: dict | None = None
     render_updated_at: datetime | None = None
+
+
+class BucketConfigUpdate(BaseModel):
+    """Limits for a bucket. Both None means unlimited (config disabled)."""
+    max_entries: int | None = None
+    max_total_bytes: int | None = None
+
+
+class BucketStats(BaseModel):
+    entries: int
+    total_bytes: int
+
+
+class BucketConfigResponse(BaseModel):
+    bucket: str
+    max_entries: int | None = None
+    max_total_bytes: int | None = None
+    created_at: datetime
+    updated_at: datetime
+    stats: BucketStats
+
+    model_config = {"from_attributes": True}
