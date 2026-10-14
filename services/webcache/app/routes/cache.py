@@ -244,6 +244,7 @@ def store_page(entry: CacheEntryCreate, db: Session = Depends(get_db)):
         prefix=entry.prefix,
         content_hash=entry.content_hash,
         client_name=entry.client_name,
+        size_bytes=len(compressed),
         created_at=now,
         retrieved_at=now,
     )
@@ -251,4 +252,9 @@ def store_page(entry: CacheEntryCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_entry)
     metrics.store_total.add(1, {"result": "created"})
+
+    # Retention: evict oldest entries if this bucket is now over its limit.
+    from ..retention import enforce_bucket_limits
+    enforce_bucket_limits(db, entry.bucket)
+
     return db_entry

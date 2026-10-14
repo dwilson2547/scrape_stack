@@ -7,6 +7,7 @@ from .config import settings
 from .database import Base, get_engine, run_migrations
 from .metrics import setup_metrics
 from .routes.browse import router as browse_router
+from .routes.buckets import router as buckets_router
 from .routes.cache import router as cache_router
 from .routes.render import router as render_router
 
@@ -23,11 +24,12 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="WebCache",
     description="Centralized web page cold-storage cache with LZ4 compression.",
-    version="0.2.0",
+    version="0.3.0",
     lifespan=lifespan,
 )
 
 app.include_router(browse_router)
+app.include_router(buckets_router)
 app.include_router(cache_router)
 app.include_router(render_router)
 

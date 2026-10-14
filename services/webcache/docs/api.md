@@ -106,3 +106,43 @@ Delete a cached entry and its associated storage file.
 ```
 
 `CacheEntryFull` adds a `content` field (string) containing the decompressed page.
+
+---
+
+## Bucket retention
+
+Buckets are implicit (any store with a `bucket` value creates one). A bucket
+**config** caps a bucket with a rolling "latest N" window: after every store,
+the oldest entries beyond the limits are evicted (DB row + storage file).
+
+A storage file is only deleted once no remaining entry references the same
+`(bucket, content_hash, prefix)` — identical content stored under two URLs
+shares one file.
+
+### `GET /buckets`
+List all bucket configs with live stats (`entries`, `total_bytes`).
+
+### `PUT /buckets/{bucket}`
+Create or update a config and enforce it immediately.
+
+```json
+{"max_entries": 1000, "max_total_bytes": null}
+```
+
+Either limit may be `null` (disabled); both `null` keeps the config but
+disables eviction. Values must be >= 1.
+
+### `POST /buckets/{bucket}/enforce`
+Manually evict down to the configured limits — useful after lowering a limit
+on a bucket that is already over it. Returns `{"bucket": ..., "evicted": n}`.
+
+### `DELETE /buckets/{bucket}`
+Remove the config only. Entries are **not** deleted.
+
+**Responses**
+| Code | Meaning |
+|---|---|
+| 200/201 | Config returned with `stats` |
+| 404 | No config for this bucket (enforce/delete) |
+| 422 | Invalid limits or empty bucket name |
+
