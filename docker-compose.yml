@@ -24,12 +24,12 @@ services:
     networks: [stack-net]
 
   browserless:
-    image: browserless/chrome:latest
+    image: ghcr.io/browserless/chromium@sha256:c4fd6493ff97936eb62cb35bbc19a428dda3d30905c3a59a28d9620f29b85db1
     ports:
       - "4000:3000"
     environment:
-      MAX_CONCURRENT_SESSIONS: "5"
-      CONNECTION_TIMEOUT: "60000"
+      CONCURRENT: "5"
+      TIMEOUT: "60000"
     restart: unless-stopped
     networks: [stack-net]
 
