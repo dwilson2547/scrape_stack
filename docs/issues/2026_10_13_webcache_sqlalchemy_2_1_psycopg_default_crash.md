@@ -66,5 +66,11 @@ Image rebuilt, pushed, deployment restarted; `/health` OK, `/openapi.json` repor
 
 ## Follow-up
 
-- Consider pinning or locking *all* scrape-stack service dependencies (the other cache services share this pattern — any of them could drift the same way on their next rebuild).
+- **Done (2026-10-13):** all Python services in the stack now carry upper-bound pins
+  (`services/{webcache,imgcache,filecache,vidcache}/requirements.txt`,
+  `services/request_authorization/api/requirements.txt`, `services/cache_browser/api/requirements.txt` —
+  the last previously had no versions at all). Rule: keep lower bounds, bound at next major,
+  `sqlalchemy>=2.0.0,<2.1` specifically. Resolution verified per service with `pip install --dry-run`
+  in `python:3.11-slim`. The request-auth server is Go and was already pinned via go.sum.
+  Running images were not rebuilt — the pins take effect at the next image build.
 - Migrate webcache to SQLAlchemy 2.1 + psycopg3 deliberately, with tests, rather than whenever pip next resolves.
