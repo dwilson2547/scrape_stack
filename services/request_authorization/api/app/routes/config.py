@@ -24,7 +24,7 @@ def get_config(db: Session = Depends(get_db)):
     m = _read_config(db)
     return ConfigRead(
         default_pool_size=int(m.get("default_pool_size", 1)),
-        default_base_delay_ms=int(m.get("default_base_delay_ms", 1000)),
+        default_base_delay_ms=int(m.get("default_base_delay_ms", 5000)),
         default_backoff_multiplier=float(m.get("default_backoff_multiplier", 3.0)),
         default_max_delay_ms=int(m.get("default_max_delay_ms", 60000)),
         default_recovery_threshold=int(m.get("default_recovery_threshold", 10)),

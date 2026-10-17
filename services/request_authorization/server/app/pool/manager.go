@@ -136,9 +136,10 @@ func (m *Manager) resolveConfig(domain string) Config {
 		}
 	}
 
-	// Apply robots.txt crawl-delay as base_delay_ms if no explicit override
+	// Apply robots.txt crawl-delay as base_delay_ms if no explicit override. A robots.txt without a
+	// Crawl-delay is stored as 0, which must fall back to the default rather than mean "no delay".
 	robots, err := m.dbClient.GetRobotsTxt(domain)
-	if err == nil && robots != nil && !robots.IsOverridden && robots.CrawlDelayMs.Valid {
+	if err == nil && robots != nil && !robots.IsOverridden && robots.CrawlDelayMs.Valid && robots.CrawlDelayMs.Value > 0 {
 		if !domRow.BaseDelayMs.Valid && !domRow.BucketID.Valid {
 			base.BaseDelayMs = robots.CrawlDelayMs.Value
 		}

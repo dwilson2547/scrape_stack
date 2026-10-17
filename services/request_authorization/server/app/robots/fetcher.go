@@ -20,7 +20,8 @@ type Result struct {
 }
 
 // Fetch retrieves robots.txt for domain and parses Crawl-delay.
-// Returns Result{Found: false} when the file is absent (404) or has no Crawl-delay.
+// Returns Result{Found: false} when the file is absent (404); a file without a Crawl-delay is
+// Found with CrawlDelayMs 0.
 // The scheme defaults to "https" but can be overridden via ROBOTS_TXT_SCHEME env var.
 func Fetch(domain string) (Result, error) {
 	scheme := os.Getenv("ROBOTS_TXT_SCHEME")

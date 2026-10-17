@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS global_config (
 
 INSERT INTO global_config (key, value) VALUES
     ('default_pool_size',              '1'),
-    ('default_base_delay_ms',          '1000'),
+    ('default_base_delay_ms',          '5000'),
     ('default_backoff_multiplier',     '3.0'),
     ('default_max_delay_ms',           '60000'),
     ('default_recovery_threshold',     '10'),

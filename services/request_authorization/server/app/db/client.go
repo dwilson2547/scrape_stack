@@ -68,7 +68,7 @@ func (c *Client) GetGlobalConfig() (GlobalConfig, error) {
 
 	return GlobalConfig{
 		DefaultPoolSize:             pi("default_pool_size", 1),
-		DefaultBaseDelayMs:          pi("default_base_delay_ms", 1000),
+		DefaultBaseDelayMs:          pi("default_base_delay_ms", 5000),
 		DefaultBackoffMultiplier:    pf("default_backoff_multiplier", 3.0),
 		DefaultMaxDelayMs:           pi("default_max_delay_ms", 60000),
 		DefaultRecoveryThreshold:    pi("default_recovery_threshold", 10),
