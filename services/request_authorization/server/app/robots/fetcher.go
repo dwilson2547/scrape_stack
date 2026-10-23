@@ -54,19 +54,37 @@ func fetchFromURL(url string) (Result, error) {
 	return Result{Found: true, CrawlDelayMs: parseCrawlDelay(raw), RawContent: raw}, nil
 }
 
-// parseCrawlDelay extracts the first Crawl-delay value in seconds and converts to ms.
-// Returns 0 if no directive is found.
+// parseCrawlDelay returns the first Crawl-delay in the group for User-agent: *, in ms, or 0.
+// A delay set only for named bots (e.g. "User-agent: GPTBot / Crawl-delay: 60") does not apply
+// to us. A group is a run of User-agent lines followed by its rules; the next User-agent line
+// after a rule starts a new group.
 func parseCrawlDelay(content string) int64 {
+	inWildcard := false
+	inAgents := false // still reading the User-agent lines that open a group
 	for _, line := range strings.Split(content, "\n") {
-		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(strings.ToLower(line), "crawl-delay:") {
+		if i := strings.Index(line, "#"); i >= 0 {
+			line = line[:i]
+		}
+		key, val, ok := strings.Cut(line, ":")
+		if !ok {
 			continue
 		}
-		parts := strings.SplitN(line, ":", 2)
-		if len(parts) != 2 {
+		key = strings.ToLower(strings.TrimSpace(key))
+		val = strings.TrimSpace(val)
+		if key == "user-agent" {
+			if !inAgents {
+				inWildcard = false
+				inAgents = true
+			}
+			if val == "*" {
+				inWildcard = true
+			}
 			continue
 		}
-		val := strings.TrimSpace(parts[1])
+		inAgents = false
+		if key != "crawl-delay" || !inWildcard {
+			continue
+		}
 		if f, err := strconv.ParseFloat(val, 64); err == nil && f > 0 {
 			return int64(f * 1000)
 		}
