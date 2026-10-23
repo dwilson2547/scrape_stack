@@ -57,14 +57,12 @@ func (s *PermitService) PermitStream(stream pb.PermitService_PermitStreamServer)
 		case *pb.ClientMessage_Request:
 			req := p.Request
 			s.inst.PermitRequestTotal.Add(ctx, 1, metric.WithAttributes(metrics.DomainAttr(req.Domain)))
-			s.inst.PermitQueued.Add(ctx, 1, metric.WithAttributes(metrics.DomainAttr(req.Domain)))
 			waitStart := time.Now()
 
 			go func() {
 				grant, err := s.manager.Acquire(ctx, clientID, req.Domain, req.ReqId)
 
 				waitMs := float64(time.Since(waitStart).Milliseconds())
-				s.inst.PermitQueued.Add(ctx, -1, metric.WithAttributes(metrics.DomainAttr(req.Domain)))
 
 				if err != nil {
 					if ctx.Err() != nil {
@@ -83,23 +81,17 @@ func (s *PermitService) PermitStream(stream pb.PermitService_PermitStreamServer)
 					metric.WithAttributes(metrics.DomainAttr(req.Domain)))
 				s.inst.PermitIssuedTotal.Add(ctx, 1,
 					metric.WithAttributes(metrics.DomainAttr(req.Domain)))
-				s.inst.PermitActive.Add(ctx, 1,
-					metric.WithAttributes(metrics.DomainAttr(req.Domain)))
 
 				select {
 				case sendCh <- &pb.ServerMessage{Payload: &pb.ServerMessage_Grant{Grant: grant}}:
 				case <-ctx.Done():
 					s.manager.Return(grant.PermitId, 0)
-					s.inst.PermitActive.Add(ctx, -1,
-						metric.WithAttributes(metrics.DomainAttr(req.Domain)))
 				}
 			}()
 
 		case *pb.ClientMessage_Ret:
 			ret := p.Ret
 			domain, holdDuration := s.manager.Return(ret.PermitId, ret.StatusCode)
-			s.inst.PermitActive.Add(ctx, -1,
-				metric.WithAttributes(metrics.DomainAttr(domain)))
 			s.inst.PermitHoldDuration.Record(ctx, float64(holdDuration.Milliseconds()),
 				metric.WithAttributes(metrics.DomainAttr(domain)))
 			s.inst.ResponseStatusTotal.Add(ctx, 1,

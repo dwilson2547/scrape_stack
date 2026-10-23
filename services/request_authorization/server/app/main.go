@@ -50,6 +50,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("pool manager: %v", err)
 	}
+	if err := inst.ObservePools(func() []metrics.PoolCounts {
+		statuses := manager.AllStatuses()
+		out := make([]metrics.PoolCounts, len(statuses))
+		for i, s := range statuses {
+			out[i] = metrics.PoolCounts{Domain: s.Domain, Active: s.Active, Queued: s.Queued}
+		}
+		return out
+	}); err != nil {
+		log.Printf("pool gauges: %v", err)
+	}
 
 	// gRPC server
 	lis, err := net.Listen("tcp", grpcAddr)

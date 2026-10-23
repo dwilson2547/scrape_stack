@@ -20,13 +20,45 @@ import (
 type Instruments struct {
 	PermitWaitDuration  metric.Float64Histogram
 	PermitHoldDuration  metric.Float64Histogram
-	PermitActive        metric.Int64UpDownCounter
-	PermitQueued        metric.Int64UpDownCounter
 	PermitRequestTotal  metric.Int64Counter
 	PermitIssuedTotal   metric.Int64Counter
 	BackoffDuration     metric.Float64Histogram
 	ResponseStatusTotal metric.Int64Counter
 	RobotsFetchTotal    metric.Int64Counter
+
+	meter metric.Meter
+}
+
+// PoolCounts is one pool's live state, as read by ObservePools.
+type PoolCounts struct {
+	Domain         string
+	Active, Queued int
+}
+
+// ObservePools exports permit.active and permit.queued per domain, read from the pools at each
+// collection. They used to be up/down counters kept by the gRPC service, which never counted the
+// permits a pool frees when a client disconnects, so every scraper that crashed holding a permit
+// left the gauge one too high for good.
+func (i *Instruments) ObservePools(read func() []PoolCounts) error {
+	active, err := i.meter.Int64ObservableGauge("permit.active",
+		metric.WithDescription("Currently held permits"))
+	if err != nil {
+		return err
+	}
+	queued, err := i.meter.Int64ObservableGauge("permit.queued",
+		metric.WithDescription("Requests waiting in queue"))
+	if err != nil {
+		return err
+	}
+	_, err = i.meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
+		for _, p := range read() {
+			attrs := metric.WithAttributes(DomainAttr(p.Domain))
+			o.ObserveInt64(active, int64(p.Active), attrs)
+			o.ObserveInt64(queued, int64(p.Queued), attrs)
+		}
+		return nil
+	}, active, queued)
+	return err
 }
 
 // Init sets up the OTel SDK and returns Instruments. Call Shutdown on the returned
@@ -80,7 +112,7 @@ func Init(ctx context.Context) (*Instruments, func(), error) {
 
 func newInstruments(meter metric.Meter) (*Instruments, error) {
 	var err error
-	inst := &Instruments{}
+	inst := &Instruments{meter: meter}
 
 	inst.PermitWaitDuration, err = meter.Float64Histogram("permit.wait_duration_ms",
 		metric.WithDescription("Time from PermitRequest to PermitGrant (ms)"),
@@ -92,18 +124,6 @@ func newInstruments(meter metric.Meter) (*Instruments, error) {
 	inst.PermitHoldDuration, err = meter.Float64Histogram("permit.hold_duration_ms",
 		metric.WithDescription("Time permit was held by client (ms)"),
 		metric.WithUnit("ms"))
-	if err != nil {
-		return nil, err
-	}
-
-	inst.PermitActive, err = meter.Int64UpDownCounter("permit.active",
-		metric.WithDescription("Currently held permits"))
-	if err != nil {
-		return nil, err
-	}
-
-	inst.PermitQueued, err = meter.Int64UpDownCounter("permit.queued",
-		metric.WithDescription("Requests waiting in queue"))
 	if err != nil {
 		return nil, err
 	}
