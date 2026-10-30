@@ -31,6 +31,10 @@ from request_auth_proto import permit_pb2
 from request_auth_proto import permit_pb2_grpc
 
 
+RECONNECT_BASE_DELAY_S = 1.0
+RECONNECT_MAX_DELAY_S = 30.0
+
+
 class RequestAuthClient:
     """Manages one gRPC bidirectional stream to the permit server.
 
@@ -51,6 +55,8 @@ class RequestAuthClient:
         self._pending: dict[int, queue.Queue] = {}
         self._send_q: queue.Queue = queue.Queue()
         self._stopped = threading.Event()
+        self._gen = 0  # bumped on every reconnect; a superseded request iterator hands messages back
+        self._failures = 0  # consecutive streams that ended before the server sent anything
         self._connect()
 
     # ------------------------------------------------------------------
@@ -89,26 +95,46 @@ class RequestAuthClient:
         ))
 
     def _connect(self) -> None:
-        self._stream = self._stub.PermitStream(self._request_iter())
-        t = threading.Thread(target=self._recv_loop, daemon=True)
+        self._stream = self._stub.PermitStream(self._request_iter(self._gen))
+        t = threading.Thread(target=self._recv_loop, args=(self._stream,), daemon=True)
         t.start()
 
-    def _request_iter(self):
-        while not self._stopped.is_set():
+    def _request_iter(self, gen: int):
+        while not self._stopped.is_set() and gen == self._gen:
             try:
                 msg = self._send_q.get(timeout=1.0)
-                if msg is None:
-                    return
-                yield msg
             except queue.Empty:
                 continue
+            if msg is None:
+                return
+            if gen != self._gen:
+                # This stream died while we waited: leave the message for the new one.
+                self._send_q.put(msg)
+                return
+            yield msg
 
-    def _recv_loop(self) -> None:
+    def _recv_loop(self, stream) -> None:
         try:
-            for msg in self._stream:
+            for msg in stream:
+                self._failures = 0
                 self._recv_loop_step(msg)
+            error = "permit stream ended"
         except grpc.RpcError as e:
-            self._wake_all_pending(str(e))
+            error = str(e)
+        if self._stopped.is_set():
+            self._wake_all_pending(error)
+            return
+        # The server restarted or the connection dropped. Requests in flight fail (callers retry them);
+        # anything queued from now on goes out on the next stream. Without this the client never
+        # reconnected and every later acquire() blocked forever (2026-10-30, a request-auth rollout).
+        with self._lock:
+            self._gen += 1
+        self._wake_all_pending(error)
+        self._failures += 1
+        delay = min(RECONNECT_MAX_DELAY_S, RECONNECT_BASE_DELAY_S * 2 ** (self._failures - 1))
+        if self._stopped.wait(delay):
+            return
+        self._connect()
 
     def _recv_loop_step(self, msg) -> None:
         if msg.HasField("grant"):

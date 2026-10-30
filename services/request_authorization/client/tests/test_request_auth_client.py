@@ -131,5 +131,64 @@ class TestRequestAuthClientRecvLoop(unittest.TestCase):
         self.assertEqual(len(client._pending), 0)
 
 
+class _DroppedStream:
+    """A stream the server closes straight away (a rollout's GOAWAY)."""
+
+    def __init__(self, requests):
+        self._requests = requests
+
+    def __iter__(self):
+        raise request_auth_module.grpc.RpcError("Stream removed (GOAWAY received; graceful_stop)")
+
+
+class _EchoServer:
+    """A stream that grants every request it is sent, as a fresh server would."""
+
+    def __init__(self, requests):
+        self._requests = requests
+
+    def __iter__(self):
+        for msg in self._requests:
+            if msg.HasField("request"):
+                yield make_grant(msg.request.req_id, permit_id=f"p{msg.request.req_id}")
+
+
+class TestReconnect(unittest.TestCase):
+    def test_acquire_after_the_server_restarts_is_granted_by_the_new_stream(self):
+        streams = [_DroppedStream, _EchoServer]
+        opened = []
+
+        def permit_stream(requests):
+            opened.append(streams[len(opened)](requests))
+            return opened[-1]
+
+        with patch("grpc.insecure_channel"), \
+             patch.object(request_auth_module, "RECONNECT_BASE_DELAY_S", 0.01):
+            client = RequestAuthClient("localhost:9000")
+            client._stub = MagicMock()
+            client._stub.PermitStream.side_effect = permit_stream
+            client._connect()  # the constructor's connect went to the patched-out stub
+
+            result = {}
+            t = threading.Thread(target=lambda: result.setdefault("permit", client.acquire("example.com")))
+            t.start()
+            t.join(timeout=5)
+            self.assertFalse(t.is_alive(), "acquire() blocked after the stream dropped")
+            self.assertEqual(len(opened), 2)
+            self.assertTrue(result["permit"]._permit_id.startswith("p"))
+            client.close()
+
+    def test_close_does_not_reconnect(self):
+        with patch("grpc.insecure_channel"), \
+             patch.object(request_auth_module, "RECONNECT_BASE_DELAY_S", 0.01):
+            client = RequestAuthClient("localhost:9000")
+            client._stub = MagicMock()
+            client._stub.PermitStream.side_effect = lambda reqs: _DroppedStream(reqs)
+            client.close()
+            client._connect()
+            threading.Event().wait(0.1)
+            self.assertEqual(client._stub.PermitStream.call_count, 1)
+
+
 if __name__ == "__main__":
     unittest.main()

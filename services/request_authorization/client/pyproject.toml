@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dwilson-request-auth-client"
-version = "0.1.3"
+version = "0.1.4"
 description = "Python client for the Request Authorization gRPC service"
 readme = "readme.md"
 requires-python = ">=3.11"
