@@ -45,6 +45,9 @@ spec:
               value: ":9003"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: {{ .Values.monitoring.otelCollector.grpcEndpoint | quote }}
+            # Metrics job becomes <namespace>/request-auth-server, keeping prod and dev apart.
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.namespace={{ .Release.Namespace }}"
           readinessProbe:
             httpGet:
               path: /health
