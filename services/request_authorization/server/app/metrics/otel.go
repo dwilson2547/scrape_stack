@@ -80,10 +80,14 @@ func Init(ctx context.Context) (*Instruments, func(), error) {
 		return nil, nil, fmt.Errorf("otlp exporter: %w", err)
 	}
 
+	// WithFromEnv takes OTEL_RESOURCE_ATTRIBUTES: the chart sets service.namespace to the k8s namespace so
+	// prod and dev export as different jobs. With the same job and labels the collector kept only dev's
+	// series and prod's counters never reached Prometheus (2026-10-30).
 	res, err := resource.New(ctx,
 		resource.WithAttributes(
 			semconv.ServiceName("request-auth-server"),
 		),
+		resource.WithFromEnv(),
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("otel resource: %w", err)
