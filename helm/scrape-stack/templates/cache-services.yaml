@@ -32,6 +32,7 @@ spec:
         app: webcache
         {{- include "scrape-stack.labels" . | nindent 8 }}
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: webcache
           image: {{ .Values.images.webcache }}
@@ -118,6 +119,7 @@ spec:
         app: imgcache
         {{- include "scrape-stack.labels" . | nindent 8 }}
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: imgcache
           image: {{ .Values.images.imgcache }}
@@ -206,6 +208,7 @@ spec:
         app: filecache
         {{- include "scrape-stack.labels" . | nindent 8 }}
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: filecache
           image: {{ .Values.images.filecache }}
@@ -293,6 +296,7 @@ spec:
         app: vidcache
         {{- include "scrape-stack.labels" . | nindent 8 }}
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: vidcache
           image: {{ .Values.images.vidcache }}

@@ -17,6 +17,7 @@ spec:
         app: request-auth-server
         {{- include "scrape-stack.labels" . | nindent 8 }}
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: request-auth-server
           image: {{ .Values.images.requestAuthServer }}
@@ -121,6 +122,7 @@ spec:
         app: request-auth-api
         {{- include "scrape-stack.labels" . | nindent 8 }}
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: request-auth-api
           image: {{ .Values.images.requestAuthApi }}
@@ -177,6 +179,7 @@ spec:
         app: request-auth-ui
         {{- include "scrape-stack.labels" . | nindent 8 }}
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: request-auth-ui
           image: {{ .Values.images.requestAuthUi }}
