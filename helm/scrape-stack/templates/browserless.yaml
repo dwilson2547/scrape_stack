@@ -17,6 +17,7 @@ spec:
         app: browserless
         {{- include "scrape-stack.labels" . | nindent 8 }}
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: browserless
           image: {{ .Values.images.browserless }}

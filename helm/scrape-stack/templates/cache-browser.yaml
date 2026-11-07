@@ -17,6 +17,7 @@ spec:
         app: cache-browser-api
         {{- include "scrape-stack.labels" . | nindent 8 }}
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: cache-browser-api
           image: {{ .Values.images.cacheBrowserApi }}
@@ -67,6 +68,7 @@ spec:
         app: cache-browser-ui
         {{- include "scrape-stack.labels" . | nindent 8 }}
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: cache-browser-ui
           image: {{ .Values.images.cacheBrowserUi }}
