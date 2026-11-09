@@ -1,0 +1,10 @@
+storage:
+  backend: local
+  local:
+    root: ./data
+  s3:
+    bucket: imgcache
+    endpoint: http://localhost:9000
+    access_key: ""
+    secret_key: ""
+    region: us-east-1

@@ -1,0 +1,19 @@
+storage:
+  backend: local
+  local:
+    root: /data/filecache
+
+index:
+  db_path: /data/filecache/index.db
+
+request_auth:
+  address: request-authorization:9000
+  enabled: true
+
+ingest:
+  temp_dir: /tmp/filecache
+  chunk_size_mb: 1
+
+server:
+  host: 0.0.0.0
+  port: 8030

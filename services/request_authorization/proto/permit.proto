@@ -1,0 +1,42 @@
+syntax = "proto3";
+package permit;
+option go_package = "github.com/dwilson/request-auth/proto";
+
+service PermitService {
+  rpc PermitStream(stream ClientMessage) returns (stream ServerMessage);
+}
+
+message ClientMessage {
+  oneof payload {
+    PermitRequest request = 1;
+    PermitReturn  ret     = 2;
+  }
+}
+
+message ServerMessage {
+  oneof payload {
+    PermitGrant grant = 1;
+    ServerError error = 2;
+  }
+}
+
+message PermitRequest {
+  string domain = 1;
+  int64  req_id = 2;
+}
+
+message PermitGrant {
+  string permit_id = 1;
+  int64  req_id    = 2;
+  int32  ttl_ms    = 3;
+}
+
+message PermitReturn {
+  string permit_id   = 1;
+  int32  status_code = 2;
+}
+
+message ServerError {
+  int64  req_id  = 1;
+  string message = 2;
+}

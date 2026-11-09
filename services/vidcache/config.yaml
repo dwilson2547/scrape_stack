@@ -1,0 +1,27 @@
+video_store:
+  backend: local          # switch to "s3" for S3/MinIO backend
+
+  local:
+    root: /data/vidcache  # root directory for all stored videos
+
+  s3:                     # only required when backend: s3
+    endpoint: http://minio.home:9000
+    access_key: minioadmin
+    secret_key: minioadmin
+    region: us-east-1
+
+dedup:
+  phash_threshold: 10         # max Hamming distance to treat pHash as duplicate
+  multipart_threshold_mb: 100 # S3 files >= this size use multipart upload
+  multipart_part_size_mb: 64  # size of each S3 multipart part
+
+ingest:
+  chunk_size_mb: 1            # streaming chunk size for download + disk write
+  temp_dir: /tmp/vidcache     # temp directory for in-progress downloads
+
+index:
+  db_path: /data/vidcache/index.db   # SQLite dedup index
+
+server:
+  host: 0.0.0.0
+  port: 8020

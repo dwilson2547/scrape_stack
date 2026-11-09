@@ -1,0 +1,14 @@
+service_name: rate-limit-testbed
+host: "0.0.0.0"
+port: 9004
+otlp_endpoint: "http://localhost:4317"
+metrics_export_interval_ms: 600000
+
+# Crawl-delay served at /robots.txt — used to verify robots.txt-based rate config
+robots_txt:
+  - user_agent: "*"
+    allow:
+      - /
+    crawl_delay: 3
+
+# No custom routes needed — tests use the built-in /probe/<code> endpoint

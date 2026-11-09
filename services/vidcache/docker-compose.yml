@@ -1,0 +1,22 @@
+services:
+  vidcache:
+    image: dwilson2547/vidcache:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8020:8020"
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://host.docker.internal:4318
+      OTEL_SERVICE_NAME: vidcache
+    volumes:
+      # Real host directory for stored videos — survives container rebuilds.
+      # Change the left side to any path you prefer.
+      - ./data/videos:/data/videos
+      # SQLite index alongside the videos
+      - ./data:/data
+      # Mount the config so you can edit it without rebuilding
+      - ./docker-config.yaml:/config/config.yaml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

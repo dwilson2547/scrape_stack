@@ -62,6 +62,11 @@ spec:
               value: {{ .Values.monitoring.otelCollector.httpEndpoint | quote }}
             - name: OTEL_SERVICE_NAME
               value: webcache
+            # Uvicorn closes idle keep-alive connections after 5 s, the same as httpx's pool expiry, so a client
+            # could reuse one just as the server closed it ("Server disconnected without sending a response").
+            # Held well past the client's 5 s, the client always drops it first.
+            - name: UVICORN_TIMEOUT_KEEP_ALIVE
+              value: "65"
           volumeMounts:
             - name: data
               mountPath: /data/webcache
@@ -145,6 +150,9 @@ spec:
               value: {{ .Values.monitoring.otelCollector.httpEndpoint | quote }}
             - name: OTEL_SERVICE_NAME
               value: imgcache
+            # Idle keep-alive past httpx's 5 s pool expiry: see webcache above.
+            - name: UVICORN_TIMEOUT_KEEP_ALIVE
+              value: "65"
           volumeMounts:
             - name: data
               mountPath: /data/imgcache

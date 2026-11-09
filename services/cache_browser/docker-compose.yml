@@ -1,0 +1,21 @@
+services:
+  cache-browser-api:
+    image: dwilson2547/cache-browser-api:latest
+    build: ./api
+    ports:
+      - "8040:8040"
+    environment:
+      WEBCACHE_URL: http://webcache:8000
+      IMGCACHE_URL: http://imgcache:8010
+      FILECACHE_URL: http://filecache:8030
+      VIDCACHE_URL: http://vidcache:8020
+    restart: unless-stopped
+
+  cache-browser-ui:
+    image: dwilson2547/cache-browser-ui:latest
+    build: ./ui
+    ports:
+      - "8041:80"
+    depends_on:
+      - cache-browser-api
+    restart: unless-stopped

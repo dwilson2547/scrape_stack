@@ -1,0 +1,92 @@
+# rate-limit-testbed config
+
+service_name: rate-limit-testbed
+host: "0.0.0.0"
+port: 9004
+otlp_endpoint: "http://host.docker.internal:4317"
+metrics_export_interval_ms: 5000
+
+# Served at /robots.txt — omit this block to default to "User-agent: * / Allow: /"
+robots_txt:
+  - user_agent: "*"
+    disallow:
+      - /private/
+    allow:
+      - /api/
+    crawl_delay: 5
+  - user_agent: "BadBot"
+    disallow:
+      - /
+
+routes:
+  # --- probabilistic routes ---
+  # reject_rate: probability (0.0–1.0) of returning reject_status (default 429)
+  # retry_after_format: "seconds" (default) or "http_date"
+
+  - path: /api/resource
+    method: GET
+    reject_rate: 0.4
+    retry_after: 2
+    latency_ms: 10
+    jitter_ms: 5
+
+  - path: /api/fast
+    method: GET
+    reject_rate: 0.05
+    retry_after: 1
+    latency_ms: 5
+    jitter_ms: 2
+
+  # Returns Retry-After as an HTTP date instead of seconds
+  - path: /api/slow
+    method: GET
+    reject_rate: 0.7
+    retry_after: 5
+    retry_after_format: "http_date"
+    latency_ms: 200
+    jitter_ms: 100
+
+  - path: /api/submit
+    method: POST
+    reject_rate: 0.5
+    retry_after: 3
+    latency_ms: 50
+    jitter_ms: 20
+
+  # --- windowed rate limiting ---
+  # window_max + window_seconds: accept N requests per window then reject
+  # rate_limit_headers: emit X-RateLimit-Limit / Remaining / Reset on every response
+
+  - path: /api/windowed
+    method: GET
+    window_max: 10
+    window_seconds: 30
+    reject_status: 429
+    retry_after: 30
+    rate_limit_headers: true
+
+  # --- weighted status distribution ---
+  # status_distribution: list of {status, weight} — overrides reject_rate/window_max
+  # wildcard: true — also matches /api/scenario/mixed/<any/path>
+
+  - path: /api/scenario/mixed
+    method: GET
+    wildcard: true
+    status_distribution:
+      - status: 200
+        weight: 0.6
+      - status: 429
+        weight: 0.3
+      - status: 503
+        weight: 0.1
+    retry_after: 5
+
+  # A scenario that simulates a site returning 403 for disallowed paths
+  - path: /api/scenario/forbidden
+    method: GET
+    wildcard: true
+    status_distribution:
+      - status: 200
+        weight: 0.7
+      - status: 403
+        weight: 0.3

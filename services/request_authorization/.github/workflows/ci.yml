@@ -1,0 +1,259 @@
+name: request-authorization-ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      server: ${{ steps.filter.outputs.server }}
+      api: ${{ steps.filter.outputs.api }}
+      ui: ${{ steps.filter.outputs.ui }}
+      client: ${{ steps.filter.outputs.client }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            server:
+              - 'server/**'
+              - 'proto/**'
+            api:
+              - 'api/**'
+            ui:
+              - 'ui/**'
+            client:
+              - 'client/**'
+              - 'proto/**'
+
+  server-pr:
+    if: github.event_name == 'pull_request' && needs.changes.outputs.server == 'true'
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+      - name: Install protoc Go plugins
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.34.2
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.4.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Generate Go proto stubs
+        working-directory: server/app
+        run: |
+          mkdir -p proto
+          protoc \
+            --go_out=proto --go_opt=paths=source_relative \
+            --go-grpc_out=proto --go-grpc_opt=paths=source_relative \
+            -I ../../proto \
+            ../../proto/permit.proto
+      - name: Test and build server
+        working-directory: server/app
+        run: |
+          go test ./...
+          go build ./...
+
+  api-pr:
+    if: github.event_name == 'pull_request' && needs.changes.outputs.api == 'true'
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install API deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r api/requirements.txt
+      - name: Compile API sources
+        run: python -m compileall api/app
+
+  ui-pr:
+    if: github.event_name == 'pull_request' && needs.changes.outputs.ui == 'true'
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Build UI
+        working-directory: ui
+        run: |
+          npm ci
+          npm run build
+
+  client-pr:
+    if: github.event_name == 'pull_request' && needs.changes.outputs.client == 'true'
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install client deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install build pytest grpcio protobuf
+          pip install -e ./client
+      - name: Fail if version already exists on PyPI
+        working-directory: client
+        run: |
+          python - <<'PY'
+          import pathlib, tomllib, urllib.error, urllib.request
+          pyproject = tomllib.loads(pathlib.Path("pyproject.toml").read_text())
+          name = pyproject["project"]["name"]
+          version = pyproject["project"]["version"]
+          url = f"https://pypi.org/pypi/{name}/{version}/json"
+          try:
+              urllib.request.urlopen(url)
+          except urllib.error.HTTPError as exc:
+              if exc.code == 404:
+                  print(f"{name}=={version} is new on PyPI")
+              else:
+                  raise
+          else:
+              raise SystemExit(f"{name}=={version} already exists on PyPI")
+          PY
+      - name: Run client tests
+        run: pytest -q client/tests
+      - name: Build client package
+        working-directory: client
+        run: python -m build
+
+  publish-server-image:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.server == 'true'
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - id: tags
+        run: |
+          echo "sha_tag=sha-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          echo "date_tag=$(date -u +%Y%m%d).${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./server/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/request-auth-server:${{ steps.tags.outputs.sha_tag }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/request-auth-server:${{ steps.tags.outputs.date_tag }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/request-auth-server:latest
+
+  publish-api-image:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.api == 'true'
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - id: tags
+        run: |
+          echo "sha_tag=sha-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          echo "date_tag=$(date -u +%Y%m%d).${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./api
+          file: ./api/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/request-auth-api:${{ steps.tags.outputs.sha_tag }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/request-auth-api:${{ steps.tags.outputs.date_tag }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/request-auth-api:latest
+
+  publish-ui-image:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.ui == 'true'
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - id: tags
+        run: |
+          echo "sha_tag=sha-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          echo "date_tag=$(date -u +%Y%m%d).${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./ui
+          file: ./ui/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/request-auth-ui:${{ steps.tags.outputs.sha_tag }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/request-auth-ui:${{ steps.tags.outputs.date_tag }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/request-auth-ui:latest
+
+  publish-client-pypi:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.client == 'true'
+    needs: changes
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install build tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+      - name: Fail if version already exists on PyPI
+        working-directory: client
+        run: |
+          python - <<'PY'
+          import pathlib, tomllib, urllib.error, urllib.request
+          pyproject = tomllib.loads(pathlib.Path("pyproject.toml").read_text())
+          name = pyproject["project"]["name"]
+          version = pyproject["project"]["version"]
+          url = f"https://pypi.org/pypi/{name}/{version}/json"
+          try:
+              urllib.request.urlopen(url)
+          except urllib.error.HTTPError as exc:
+              if exc.code == 404:
+                  print(f"{name}=={version} is new on PyPI")
+              else:
+                  raise
+          else:
+              raise SystemExit(f"{name}=={version} already exists on PyPI")
+          PY
+      - name: Build client package
+        working-directory: client
+        run: python -m build
+      - name: Publish to PyPI
+        working-directory: client
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: python -m twine upload dist/*

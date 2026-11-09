@@ -1,0 +1,24 @@
+# Long-form performance test phases for the rate-limit testbed.
+#
+# Each phase runs for duration_seconds then transitions to the next.
+# The last phase (or any phase with hold: true) runs until stopped.
+# Use --cycle to repeat all phases indefinitely.
+#
+# routes: list of paths to target, or omit to hit all configured routes.
+
+phases:
+  - name: warmup
+    rps: 5
+    duration_seconds: 60
+
+  - name: normal
+    rps: 20
+    duration_seconds: 120
+
+  - name: heavy
+    rps: 60
+    duration_seconds: 120
+
+  - name: soak
+    rps: 30
+    hold: true   # holds at this RPS until Ctrl+C or SIGTERM
