@@ -39,7 +39,9 @@ def main() -> None:
         sys.exit(1)
 
     app = create_app(config)
-    uvicorn.run(app, host=config.server.host, port=config.server.port)
+    # Idle keep-alive held well past httpx's 5 s pool expiry, so the client drops a connection before the server
+    # does (otherwise: "Server disconnected without sending a response"; docs/issues/2026_11_08_webcache_keepalive_race_disconnect.md).
+    uvicorn.run(app, host=config.server.host, port=config.server.port, timeout_keep_alive=65)
 
 
 if __name__ == "__main__":

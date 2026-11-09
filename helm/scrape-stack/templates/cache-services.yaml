@@ -150,6 +150,9 @@ spec:
               value: {{ .Values.monitoring.otelCollector.httpEndpoint | quote }}
             - name: OTEL_SERVICE_NAME
               value: imgcache
+            # Idle keep-alive past httpx's 5 s pool expiry: see webcache above.
+            - name: UVICORN_TIMEOUT_KEEP_ALIVE
+              value: "65"
           volumeMounts:
             - name: data
               mountPath: /data/imgcache
