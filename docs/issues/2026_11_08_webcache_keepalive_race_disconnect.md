@@ -57,13 +57,22 @@ The server now holds idle connections for 65 s, much longer than the client's 5 
 connection first. No image rebuild was needed. Checked in the pod after the rollout: a connection left idle for 10 s
 then served a second request with a 200.
 
-Commit f6bbfdb on main (prod). The dev branch (scrape-stack-dev) doesn't have it yet.
+Commit f6bbfdb on main (prod).
 
-Not done: the same default probably applies to imgcache, filecache, vidcache and request-auth, if they run plain
-uvicorn too. Only webcache has failed this way so far.
+### imgcache, filecache, vidcache (a146d54)
+
+The other cache services ran uvicorn with the same 5 s default and got the same 65 s:
+
+- imgcache starts from the `uvicorn` CLI, so it takes the same `UVICORN_TIMEOUT_KEEP_ALIVE` env var.
+- filecache and vidcache call `uvicorn.run()` from `main.py`. That ignores `UVICORN_*` env vars (only the CLI reads
+  them), so the code now passes `timeout_keep_alive=65`. This needed new images.
+
+After the rollout, a connection left idle for 10 s got a 200 on its next request in both filecache and vidcache.
+request-auth was not checked.
 
 ---
 
 ## Files changed
 
-- `helm/scrape-stack/templates/cache-services.yaml` — webcache container env
+- `helm/scrape-stack/templates/cache-services.yaml` — webcache and imgcache container env
+- `services/filecache/main.py`, `services/vidcache/main.py` — `uvicorn.run(..., timeout_keep_alive=65)`
